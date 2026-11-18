@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LiveCaption 캡스톤 발표</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one fixed 1280x720 slide canvas, scaled to fit; a broadcast caption band (yellow on ink) is the recurring motif, timecodes in mono. */
+:root {
+  --bg: #eef2f8;          /* room around the slide */
+  color-scheme: light;   /* one bright look on every screen and projector */
+  --slide: #ffffff;       /* slide paper */
+  --ink: #142036;         /* text */
+  --muted: #5a6478;       /* secondary text */
+  --line: #d3d8e2;        /* hairlines, table rules */
+  --panel: #f2f5fa;       /* quiet panels */
+  --band: #142036;        /* caption band ground */
+  --band-ink: #ffd23f;    /* caption band text: subtitle yellow */
+  --accent: #b47c00;      /* yellow that reads on paper */
+  --signal: #2f63d6;      /* secondary: stream / clock */
+  --good: #1f8a57;
+  --bad: #c2463a;
+  --font-display: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Consolas", monospace;
+}
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body);
+  overflow: hidden; -webkit-font-smoothing: antialiased;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0; box-sizing: border-box;
+}
+.stage { position: relative; width: 100%; height: 100%; display: grid; place-items: center; }
+.deck { position: relative; width: 1280px; height: 720px; transform-origin: center center; flex: none; }
+.slide {
+  position: absolute; inset: 0; background: var(--slide); color: var(--ink);
+  border-radius: 6px; box-shadow: 0 8px 30px rgba(20, 40, 80, .10);
+  padding: 64px 80px 72px; box-sizing: border-box; display: none; overflow: hidden;
+}
+.slide.active { display: flex; flex-direction: column; animation: show .35s ease both; }
+@keyframes show { from { opacity: .4; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .slide.active { animation: none; } }
+
+/* type scale: 64 / 40 / 28 / 22 / 18 / 15 */
+.eyebrow { font-family: var(--font-mono); font-size: 15px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+h1, h2, h3 { font-family: var(--font-display); margin: 0; text-wrap: balance; }
+h2 { font-size: 40px; font-weight: 700; line-height: 1.25; margin-top: 12px; letter-spacing: -.01em; }
+h3 { font-size: 22px; font-weight: 700; line-height: 1.35; }
+p { margin: 0; }
+.lead { font-size: 22px; line-height: 1.6; color: var(--muted); margin-top: 16px; max-width: 980px; }
+.body { font-size: 18px; line-height: 1.6; color: var(--muted); }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.content { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 28px; margin-top: 28px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+.grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+.card { background: var(--panel); border-radius: 6px; padding: 24px 26px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.card .tag { font-family: var(--font-mono); font-size: 14px; color: var(--muted); letter-spacing: .06em; }
+.card h3 + .body { margin-top: 2px; }
+.minus { color: var(--bad); font-weight: 600; }
+.plus { color: var(--good); font-weight: 600; }
+ul.points { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 14px; }
+ul.points li { font-size: 20px; line-height: 1.5; padding-left: 26px; position: relative; }
+ul.points li::before { content: ""; position: absolute; left: 0; top: .62em; width: 12px; height: 3px; background: var(--accent); }
+ul.points li small { display: block; font-size: 16px; color: var(--muted); margin-top: 2px; }
+
+/* the recurring caption band */
+.band {
+  display: inline-block; background: var(--band); color: var(--band-ink);
+  font-family: var(--font-display); font-weight: 600; font-size: 26px; line-height: 1.45;
+  padding: 8px 18px; border-radius: 3px; box-decoration-break: clone; -webkit-box-decoration-break: clone;
+}
+.band.dim { color: #f2e6b8; opacity: .72; font-style: italic; }
+.band.speaker2 { color: #8fd4ff; }
+.timecode { font-family: var(--font-mono); font-size: 15px; color: var(--muted); letter-spacing: .04em; }
+.footer {
+  position: absolute; left: 80px; right: 80px; bottom: 26px; display: flex; justify-content: space-between;
+  font-family: var(--font-mono); font-size: 13px; color: var(--muted); letter-spacing: .05em;
+}
+
+/* title slide */
+.title-slide { justify-content: space-between; }
+.title-slide h1 { font-size: 88px; font-weight: 700; letter-spacing: -.02em; line-height: 1; }
+.title-slide .sub { font-size: 30px; font-weight: 500; margin-top: 18px; }
+.live-pill { display: inline-flex; align-items: center; gap: 10px; font-family: var(--font-mono); font-weight: 600; font-size: 16px; color: #fff; background: var(--bad); padding: 6px 12px; border-radius: 3px; letter-spacing: .08em; }
+.live-pill i { width: 9px; height: 9px; border-radius: 50%; background: #fff; display: inline-block; }
+.title-meta { display: flex; justify-content: space-between; align-items: flex-end; }
+.title-meta .who { font-size: 20px; color: var(--muted); line-height: 1.6; }
+
+/* tables */
+table { border-collapse: collapse; width: 100%; font-size: 18px; }
+th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 15px; color: var(--muted); font-weight: 600; letter-spacing: .04em; }
+td.num, th.num { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+tr.ours td { background: color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 600; }
+.yes { color: var(--good); font-weight: 600; }
+.no { color: var(--bad); font-weight: 600; }
+.mid { color: var(--accent); font-weight: 600; }
+
+/* big numbers */
+.stat { display: flex; flex-direction: column; gap: 6px; }
+.stat .from { font-family: var(--font-mono); font-size: 20px; color: var(--muted); text-decoration: line-through; text-decoration-thickness: 2px; }
+.stat .to { font-family: var(--font-mono); font-size: 52px; font-weight: 600; color: var(--ink); line-height: 1.05; font-variant-numeric: tabular-nums; }
+.stat .to small { font-size: 22px; color: var(--muted); font-weight: 500; }
+.stat .label { font-size: 17px; color: var(--muted); }
+
+/* svg text */
+svg text { font-family: var(--font-body); fill: var(--ink); }
+svg .m { font-family: var(--font-mono); }
+svg .muted { fill: var(--muted); }
+svg .acc { fill: var(--accent); }
+svg .sig { fill: var(--signal); }
+svg .box { fill: var(--panel); stroke: var(--line); stroke-width: 1.5; }
+svg .box-strong { fill: var(--slide); stroke: var(--ink); stroke-width: 2; }
+svg .flow { stroke: var(--signal); stroke-width: 3; fill: none; }
+svg .flow-acc { stroke: var(--accent); stroke-width: 3; fill: none; }
+svg .rule { stroke: var(--line); stroke-width: 1.5; }
+svg .axis { stroke: var(--muted); stroke-width: 1.5; }
+
+/* controls */
+.controls {
+  position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  display: flex; gap: 6px; align-items: center; z-index: 5;
+}
+.controls button {
+  font: 600 13px var(--font-mono); color: var(--ink); background: var(--slide); border: 1px solid var(--line);
+  border-radius: 4px; padding: 7px 11px; cursor: pointer;
+}
+.controls button:hover { border-color: var(--accent); }
+.controls button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.controls .count { font: 500 13px var(--font-mono); color: var(--muted); padding: 0 6px; min-width: 64px; text-align: center; }
+.progress { position: fixed; left: 0; right: 0; top: env(safe-area-inset-top, 0px); height: 3px; z-index: 5; }
+.progress i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .25s ease; }
+.hint { position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); font: 12px var(--font-mono); color: var(--muted); z-index: 5; }
+@media (max-width: 640px) { .hint { display: none; } }
+.fix-row { display: flex; align-items: baseline; gap: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.fix-tool { font-family: var(--font-mono); font-weight: 600; font-size: 18px; color: var(--accent); min-width: 230px; }
+.fix-what { font-size: 20px; color: var(--ink); }
+</style>
+</head>
+<body>
+
+
+<div class="progress" aria-hidden="true"><i id="bar"></i></div>
+<div class="stage" id="stage">
+<div class="deck" id="deck">
+<!-- 1. title -->
+<section class="slide title-slide" data-title="표지">
+  <div style="display:flex; justify-content:space-between; align-items:center">
+    <span class="eyebrow">캡스톤 디자인 최종 발표</span>
+    <span class="live-pill"><i></i>LIVE −2.4초</span>
+  </div>
+  <div>
+    <h1>LiveCaption</h1>
+    <p class="sub">유튜브 자동 자막이 닿지 않는 라이브에, 실시간 한국어 자막을</p>
+    <div style="margin-top:36px; display:flex; flex-direction:column; gap:8px; align-items:flex-start">
+      <span class="timecode">확정 · 화자 1</span>
+      <span class="band">시청자가 켜고, 말하는 순간에 맞춰 뜹니다.</span>
+    </div>
+  </div>
+  <div class="title-meta">
+    <p class="who">팀 레몬</p>
+    <p class="timecode">GPU 음성 인식 · 방송 시각 자동 싱크 · 저지연</p>
+  </div>
+</section>
+
+<!-- 2. why -->
+<section class="slide" data-title="왜 필요한가">
+  <span class="eyebrow">왜 필요한가</span>
+  <h2>라이브는 지금 이 순간을 같이 보는 것,<br>자막이 없으면 그 순간에서 빠진다</h2>
+  <div class="content">
+    <div class="grid3">
+      <div class="card">
+        <span class="tag">청각장애 · 난청</span>
+        <h3>소리 없이 뉴스와 중계를 따라가야 한다</h3>
+      </div>
+      <div class="card">
+        <span class="tag">소리를 켤 수 없는 곳</span>
+        <h3>지하철, 사무실, 도서관에서 음소거로 본다</h3>
+      </div>
+      <div class="card">
+        <span class="tag">외국인 · 학습자</span>
+        <h3>빠른 한국어는 글로 함께 볼 때 이해된다</h3>
+      </div>
+    </div>
+    <p class="lead">녹화 영상은 나중에 자막을 붙이면 되지만, 라이브는 <b style="color:var(--ink)">지금 장면과 맞는 자막</b>이 바로 있어야 한다.</p>
+  </div>
+  <div class="footer"><span>LiveCaption</span><span>02</span></div>
+</section>
+
+<!-- 3. youtube gap -->
+<section class="slide" data-title="유튜브 자동 자막의 한계">
+  <span class="eyebrow">유튜브 자동 자막으로는 안 되는 것</span>
+  <h2>한국어 라이브에는 유튜브 자동 자막이 없다</h2>
+  <div class="content">
+    <div class="grid3">
+      <div class="card">
+        <span class="tag mono">한계 1 · 언어</span>
+        <h3>라이브 자동 자막은 영어만</h3>
+        <p class="body">한국어 자동 자막은 녹화 영상에서만 된다.</p>
+      </div>
+      <div class="card">
+        <span class="tag mono">한계 2 · 방송 설정</span>
+        <h3>일반 지연 방송에서만</h3>
+        <p class="body">저지연·초저지연으로 송출하는 라이브에서는 켤 수 없다.</p>
+      </div>
+      <div class="card">
+        <span class="tag mono">한계 3 · 결정권</span>
+        <h3>방송자가 켜야 한다</h3>
+        <p class="body">방송마다 방송자가 설정해야 하고, 시청자는 켤 수 없다.</p>
+      </div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px; align-items:flex-start">
+      <span class="band" style="font-size:24px">→ 한국어 뉴스·중계 라이브를 보는 시청자는 자막을 받을 방법이 없다.</span>
+      <p class="body" style="font-size:14px">출처: YouTube 고객센터 「자동 자막 사용」 문서 (2026년 11월 확인). 정책은 바뀔 수 있다.</p>
+    </div>
+  </div>
+  <div class="footer"><span>LiveCaption</span><span>03</span></div>
+</section>
+
+<!-- 4. what we built -->
+<section class="slide" data-title="LiveCaption">
+  <span class="eyebrow">우리가 만든 것</span>
+  <h2>라이브 주소만 넣으면, 시청자 PC에서 한국어 자막이 붙는다</h2>
+  <div class="content">
+    <div class="grid3">
+      <div class="card" style="gap:14px">
+        <span class="tag mono">차별점 1</span>
+        <h3 style="font-size:26px">시청자가 켠다</h3>
+        <p class="body">방송자의 설정이나 협조 없이, 어떤 YouTube 라이브에든</p>
+      </div>
+      <div class="card" style="gap:14px">
+        <span class="tag mono">차별점 2</span>
+        <h3 style="font-size:26px">한국어 라이브</h3>
+        <p class="body">GPU 음성 인식으로 한국어를 실시간 인식, 저지연 방송도 가능</p>
+      </div>
+      <div class="card" style="gap:14px">
+        <span class="tag mono">차별점 3</span>
+        <h3 style="font-size:26px">말한 순간에 맞춰</h3>
+        <p class="body">방송 시각(PTS)으로 자막을 장면에 맞추고, 라이브와의 지연을 표시</p>
+      </div>
+    </div>
+    <svg viewBox="0 0 1120 150" width="1120" height="150" role="img" aria-label="간단한 구조">
+      <rect class="box-strong" x="0" y="40" width="220" height="70" rx="6"/>
+      <text x="110" y="82" text-anchor="middle" font-size="20" font-weight="700">YouTube 라이브</text>
+      <rect class="box-strong" x="420" y="0" width="300" height="60" rx="6"/>
+      <text x="570" y="37" text-anchor="middle" font-size="18" font-weight="600">시청자 PC · 영상 재생</text>
+      <rect class="box-strong" x="420" y="90" width="300" height="60" rx="6"/>
+      <text x="570" y="127" text-anchor="middle" font-size="18" font-weight="600">GPU 서버 · 음성 인식</text>
+      <path class="flow" d="M220 65 C320 65 320 30 412 30"/><path d="M412 24 L422 30 L412 36 Z" fill="var(--signal)"/>
+      <path class="flow" d="M220 85 C320 85 320 120 412 120"/><path d="M412 114 L422 120 L412 126 Z" fill="var(--signal)"/>
+      <path class="flow-acc" d="M720 120 H800 V30 H728"/><path d="M736 24 L726 30 L736 36 Z" fill="var(--accent)"/>
+      <rect x="820" y="45" width="290" height="60" rx="4" fill="var(--band)"/>
+      <text x="836" y="71" font-size="16" fill="var(--band-ink)" font-weight="600">서버는 자막만 보낸다</text>
+      <text x="836" y="94" font-size="14" fill="var(--band-ink)" class="m">영상은 PC가 YouTube에서 직접</text>
+    </svg>
+  </div>
+  <div class="footer"><span>LiveCaption</span><span>04</span></div>
+</section>
+
+<!-- 5. fix 1 -->
+<section class="slide" data-title="문제 1 · 한국어 자막">
+  <span class="eyebrow">고친 문제 1 · 한국어 라이브 자막이 없다</span>
+  <h2>GPU에서 돌리는 실시간 음성 인식</h2>
+  <div class="content">
+    <div class="grid2" style="gap:40px; align-items:center">
+      <div style="display:flex; flex-direction:column; gap:18px">
+        <div class="fix-row"><span class="fix-tool">streamlink · FFmpeg</span><span class="fix-what">라이브에서 음성만 뽑아 16kHz로</span></div>
+        <div class="fix-row"><span class="fix-tool">WhisperLive</span><span class="fix-what">들어오는 음성을 계속 인식</span></div>
+        <div class="fix-row"><span class="fix-tool">faster-whisper</span><span class="fix-what">Whisper large-v3-turbo를 RTX 5080에서</span></div>
+        <div class="fix-row"><span class="fix-tool">FastAPI · WebSocket</span><span class="fix-what">인식 결과를 PC로 바로 전송</span></div>
+      </div>
+      <div style="background:var(--band); border-radius:6px; padding:28px; display:flex; flex-direction:column; gap:14px; align-items:flex-start">
+        <span class="timecode" style="color:#9aa6bd">인식 중 (흐리게)</span>
+        <span class="band dim" style="padding:0; background:none">미중러 3국 정상이 처음으로 한자리에…</span>
+        <span class="timecode" style="color:#9aa6bd">확정 (진하게)</span>
+        <span class="band" style="padding:0; background:none">미중러 3국 정상이 처음으로 한자리에 모입니다.</span>
+      </div>
+    </div>
+    <p class="body">들리는 대로 먼저 흐리게 보여 주고, 결과가 굳으면 확정한다.</p>
+  </div>
+  <div class="footer"><span>LiveCaption</span><span>05</span></div>
+</section>
+
+<!-- 6. fix 2 -->
+<section class="slide" data-title="문제 2 · 싱크">
+  <span class="eyebrow">고친 문제 2 · 자막이 장면과 어긋난다</span>
+  <h2>도착한 순간이 아니라, 말한 순간에 붙인다</h2>
+  <div class="content">
+    <div class="grid2" style="gap:36px">
+      <div class="card">
+        <span class="tag">보통의 실시간 자막</span>
+        <h3>자막이 <span class="minus">도착한 순간</span>에 표시</h3>
+        <p class="body">문장마다 인식에 1.4~4.5초가 걸려서, 어떤 자막은 이르고 어떤 자막은 늦다. 한 번 맞춰도 다음 문장에서 또 어긋난다.</p>
+      </div>
+      <div class="card" style="background:color-mix(in srgb, var(--accent) 14%, var(--panel))">
+        <span class="tag">LiveCaption</span>
+        <h3>그 말이 나온 <span class="plus">방송 시각</span>에 표시</h3>
+        <p class="body">인식이 얼마나 걸렸든 자막이 원래 자리에 붙는다.</p>
+      </div>
+    </div>
+    <div class="grid2" style="gap:36px">
+      <div class="fix-row"><span class="fix-tool">PTS (방송 시각)</span><span class="fix-what">영상 조각마다 박힌 시각을 공통 시계로</span></div>
+      <div class="fix-row"><span class="fix-tool">FFmpeg · 로컬 프록시</span><span class="fix-what">서버와 PC가 각자 같은 시계를 읽는다</span></div>
+    </div>
+  </div>
+  <div class="footer"><span>LiveCaption</span><span>06</span></div>
+</section>
+
+<!-- 7. fix 3 -->
+<section class="slide" data-title="문제 3 · 지연">
+  <span class="eyebrow">고친 문제 3 · 라이브인데 늦다</span>
+  <h2>지연이 생기는 곳마다 하나씩 줄였다</h2>
+  <div class="content">
+    <table>
+      <thead><tr><th style="width:30%">어디서 늦었나</th><th style="width:34%">무엇으로 고쳤나</th><th class="num">효과</th></tr></thead>
+      <tbody>
+        <tr><td>오래된 조각까지 담긴 재생목록</td><td><b>streamlink</b>의 저지연 재생목록</td><td class="num">2~3초 더 최신</td></tr>
+        <tr><td>플레이어가 여유 있게 늦게 시작</td><td><b>로컬 HLS 프록시</b>: 최신 조각에서 시작, 미리 받기</td><td class="num">라이브 대비 1.6~3.3초</td></tr>
+        <tr><td>음성 인식이 문장을 늦게 확정</td><td><b>인식 설정 튜닝</b> (벤치마크로 비교)</td><td class="num">확정 2.3 → 1.2초</td></tr>
+        <tr><td>자막이 늦으면 영상과 어긋남</td><td><b>자동 영상 지연 · 따라잡기</b> (1.05배속)</td><td class="num">필요할 때만 자동</td></tr>
+      </tbody>
+    </table>
+    <p class="body">영상은 서버를 거치지 않는다. 서버를 거치면 그만큼 지연이 늘어나기 때문이다.</p>
+  </div>
+  <div class="footer"><span>LiveCaption</span><span>07</span></div>
+</section>
+
+<!-- 8. results -->
+<section class="slide" data-title="결과">
+  <span class="eyebrow">결과 · YTN 라이브 실측</span>
+  <h2>자막을 기다리느라 영상을 멈출 필요가 없어졌다</h2>
+  <div class="content">
+    <div class="grid4">
+      <div class="stat"><span class="from">2.31 s</span><span class="to">1.2<small> s</small></span><span class="label">말 끝 → 확정 자막</span></div>
+      <div class="stat"><span class="from">1.73 s</span><span class="to">1.2<small> s</small></span><span class="label">말 시작 → 자막 표시</span></div>
+      <div class="stat"><span class="from">2.5~5 s</span><span class="to">1.6~3.3<small> s</small></span><span class="label">유튜브 최신 화면보다 늦은 정도</span></div>
+      <div class="stat"><span class="from">4~8 s</span><span class="to">0<small> s</small></span><span class="label">싱크를 위해 멈춘 시간</span></div>
+    </div>
+    <p class="lead">자막 90개 중 85개가 장면보다 먼저 준비됐다. 인식 정확도는 약 1점 낮아졌다(0.914 → 0.90).</p>
+  </div>
+  <div class="footer"><span>LiveCaption</span><span>08</span></div>
+</section>
+
+<!-- 9. compare -->
+<section class="slide" data-title="유튜브 자동 자막과 비교">
+  <span class="eyebrow">유튜브 자동 자막과 비교</span>
+  <h2>같은 라이브, 다른 결과</h2>
+  <div class="content">
+    <table>
+      <thead><tr><th style="width:26%"></th><th>유튜브 라이브 자동 자막</th><th>LiveCaption</th></tr></thead>
+      <tbody>
+        <tr><td>한국어 라이브</td><td class="no">미지원 (영어만)</td><td class="yes">지원</td></tr>
+        <tr><td>저지연 방송</td><td class="no">사용 불가 (일반 지연만)</td><td class="yes">방송 지연 설정과 무관</td></tr>
+        <tr><td>누가 켜나</td><td class="no">방송자가 방송마다</td><td class="yes">시청자가 주소만 넣고</td></tr>
+        <tr><td>타이밍</td><td>플랫폼이 정함</td><td class="yes">말한 방송 시각에 자동 배치 + 수동 보정</td></tr>
+        <tr><td>라이브와의 거리</td><td>표시 없음</td><td class="yes">LIVE −초 실시간 표시</td></tr>
+        <tr><td>비용</td><td class="yes">무료</td><td class="mid">GPU 서버 필요</td></tr>
+      </tbody>
+    </table>
+    <p class="body" style="font-size:14px">유튜브 항목: YouTube 고객센터 「자동 자막 사용」 문서 기준 (2026년 11월 확인).</p>
+  </div>
+  <div class="footer"><span>LiveCaption</span><span>09</span></div>
+</section>
+
+<!-- 10. demo -->
+<section class="slide" data-title="시연">
+  <span class="eyebrow">시연</span>
+  <h2>YTN 뉴스 라이브에 자막 붙이기</h2>
+  <div class="content">
+    <div class="grid2" style="gap:40px; align-items:center">
+      <ul class="points">
+        <li>주소 입력 <small class="mono">youtube.com/@ytnnews24/live</small></li>
+        <li>재생과 함께 AI 자막 자동 시작</li>
+        <li>흐린 자막이 진하게 확정되는 모습</li>
+        <li>화면 위 <b>LIVE −초</b>와 <b>자동 싱크</b> 표시</li>
+      </ul>
+      <div style="background:var(--band); border-radius:6px; aspect-ratio:16/9; max-width:100%; position:relative; display:flex; align-items:flex-end; justify-content:center; padding-bottom:26px">
+        <span class="live-pill" style="position:absolute; left:18px; top:16px"><i></i>LIVE −2.4초</span>
+        <span class="mono" style="position:absolute; right:18px; top:18px; font-size:13px; color:#9aa6bd">자동 싱크</span>
+        <span class="band" style="font-size:22px; background:rgba(0,0,0,.55)">우크라이나 유럽의 입장을 배제한 채…</span>
+      </div>
+    </div>
+  </div>
+  <div class="footer"><span>LiveCaption</span><span>10</span></div>
+</section>
+
+<!-- 11. next -->
+<section class="slide" data-title="향후 과제">
+  <span class="eyebrow">향후 과제</span>
+  <h2>다음에 할 일</h2>
+  <div class="content">
+    <div class="grid3">
+      <div class="card"><h3>번역 자막</h3><p class="body">인식한 한국어를 다른 언어로 바로 번역</p></div>
+      <div class="card"><h3>더 낮은 지연</h3><p class="body">스트리밍 전용 인식 모델, 단어 단위 확정</p></div>
+      <div class="card"><h3>더 많은 방송</h3><p class="body">YouTube 외 라이브, 웹 브라우저에서 보기</p></div>
+    </div>
+  </div>
+  <div class="footer"><span>LiveCaption</span><span>11</span></div>
+</section>
+
+<!-- 12. end -->
+<section class="slide title-slide" data-title="질의응답">
+  <span class="eyebrow">감사합니다</span>
+  <div>
+    <h1 style="font-size:72px">질의응답</h1>
+    <div style="margin-top:32px; display:flex; flex-direction:column; gap:8px; align-items:flex-start">
+      <span class="timecode">확정 · 화자 1</span>
+      <span class="band">질문 주시면 자막으로도 받아 적겠습니다.</span>
+    </div>
+  </div>
+  <div class="title-meta">
+    <p class="who">LiveCaption · 팀 레몬</p>
+    <p class="timecode">GPU 음성 인식 · 방송 시각 자동 싱크 · 저지연</p>
+  </div>
+</section>
+
+</div>
+</div>
+
+<div class="hint">← → 넘기기 · F 전체화면</div>
+<div class="controls">
+  <button id="prev" type="button" aria-label="이전 슬라이드">←</button>
+  <span class="count" id="count">1 / 12</span>
+  <button id="next" type="button" aria-label="다음 슬라이드">→</button>
+  <button id="full" type="button" aria-label="전체화면">전체</button>
+</div>
+
+<script>
+(function () {
+  var deck = document.getElementById("deck");
+  var slides = Array.prototype.slice.call(deck.querySelectorAll(".slide"));
+  var count = document.getElementById("count");
+  var bar = document.getElementById("bar");
+  var index = 0;
+
+  function fit() {
+    var stage = document.getElementById("stage");
+    var scale = Math.min(stage.clientWidth / 1280, stage.clientHeight / 720) * 0.96;
+    deck.style.transform = "scale(" + scale + ")";
+  }
+
+  function show(next) {
+    index = Math.max(0, Math.min(slides.length - 1, next));
+    slides.forEach(function (slide, i) { slide.classList.toggle("active", i === index); });
+    count.textContent = (index + 1) + " / " + slides.length;
+    bar.style.width = ((index + 1) / slides.length * 100) + "%";
+    var hash = "#s" + (index + 1);
+    if (location.hash !== hash) { try { history.replaceState(null, "", hash); } catch (e) { /* ignore */ } }
+  }
+
+  function fromHash() {
+    var match = /^#s(\d+)$/.exec(location.hash);
+    return match ? parseInt(match[1], 10) - 1 : 0;
+  }
+
+  function toggleFull() {
+    try {
+      if (document.fullscreenElement) { document.exitFullscreen(); }
+      else if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(function () {});
+      }
+    } catch (e) { /* fullscreen not available here */ }
+  }
+
+  document.getElementById("prev").addEventListener("click", function () { show(index - 1); });
+  document.getElementById("next").addEventListener("click", function () { show(index + 1); });
+  document.getElementById("full").addEventListener("click", toggleFull);
+  document.addEventListener("keydown", function (event) {
+    if (event.target.closest && event.target.closest("button") && (event.key === " " || event.key === "Enter")) { return; }
+    if (["ArrowRight", "PageDown", " ", "Enter"].indexOf(event.key) >= 0) { event.preventDefault(); show(index + 1); }
+    else if (["ArrowLeft", "PageUp", "Backspace"].indexOf(event.key) >= 0) { event.preventDefault(); show(index - 1); }
+    else if (event.key === "Home") { show(0); }
+    else if (event.key === "End") { show(slides.length - 1); }
+    else if (event.key === "f" || event.key === "F") { toggleFull(); }
+  });
+  deck.addEventListener("click", function (event) {
+    var box = deck.getBoundingClientRect();
+    show(event.clientX - box.left > box.width * 0.3 ? index + 1 : index - 1);
+  });
+  var touchX = null;
+  document.addEventListener("touchstart", function (event) { touchX = event.touches[0].clientX; }, { passive: true });
+  document.addEventListener("touchend", function (event) {
+    if (touchX === null) { return; }
+    var dx = event.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 40) { show(dx < 0 ? index + 1 : index - 1); }
+    touchX = null;
+  });
+  window.addEventListener("resize", fit);
+  window.addEventListener("hashchange", function () { show(fromHash()); });
+  fit();
+  show(fromHash());
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,21 @@
+# Install:  uv pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu128
+#           uv pip install --no-deps whisper-live==0.10.0
+# whisper-live goes in with --no-deps: its PyAudio/OpenVINO extras need gcc and are unused on the server.
+faster-whisper==1.2.0
+torch
+torchaudio
+nvidia-cublas-cu12
+nvidia-cudnn-cu12==9.*
+av
+numpy<2.5
+scipy
+soundfile
+onnxruntime
+websockets
+websocket-client
+fastapi
+uvicorn[standard]
+python-multipart
+yt-dlp[default]
+streamlink
+imageio-ffmpeg
