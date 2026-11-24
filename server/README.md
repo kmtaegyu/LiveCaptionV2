@@ -14,6 +14,7 @@
 | `caption_api.py` | 세션, FFmpeg 실행, WhisperLive 연결, 자막 전송, SRT/VTT 내보내기 |
 | `media.py` | 스트림 주소 확인, FFmpeg 명령, 첫 음성 PTS 읽기 |
 | `hotwords.py` | 방송 제목·태그·채널명·설명에서 인식 핫워드 만들기(최대 40단어, 약 200토큰) |
+| `topics.py`, `dictionaries/<주제>.json` | 주제 사전: 핫워드 용어와 오인식 → 정답 치환 규칙 |
 | `segments.py` | WhisperLive 결과 → 자막 이벤트(인식 중과 확정을 같은 id로 잇고, 중복·환각 문구 제거) |
 | `run_whisper.py` | WhisperLive 실행(`--beam-size`, `--min-chunk`) |
 | `start.sh` | 두 서버를 백그라운드로 (재)시작, 로그는 `logs/` |
@@ -51,6 +52,7 @@ curl localhost:8000/health        # {"ok":true,"whisper":"up",...}
 플레이어 → 서버
 
 - `{"type":"start","url":"https://www.youtube.com/watch?v=...","language":"ko","diarization":false,"keywords":"APEC, 머신러닝"}`
+  `topic`(선택)은 주제 사전 이름(`dictionaries/<topic>.json`, 예: `politics`). 없거나 모르는 이름이면 사전 없이 동작합니다.
   `keywords`(선택)는 패널에 입력한 핫워드. 쉼표·공백으로 구분하며 방송 정보에서 뽑은 핫워드보다 앞에 둡니다.
   `language`가 `null`이면 자동 감지. URL은 http(s)·rtmp·srt·rtp만 허용합니다(서버 파일 접근 차단).
 - `{"type":"stop"}`
@@ -75,3 +77,16 @@ curl localhost:8000/health        # {"ok":true,"whisper":"up",...}
 | beam 1 · 반복 2 | 1.10초 | 0.90초 | 0.879 |
 
 \*녹음 전체를 문맥을 다 보고 인식한 결과와의 글자 일치도. 중앙값.
+
+## 주제 사전 (`dictionaries/<주제>.json`)
+
+```json
+{"topic": "politics", "title": "정치",
+ "entries": [{"term": "국무회의", "category": "제도", "hotword": true, "variants": ["궁무회의"]}]}
+```
+
+- `hotword: true`인 `term`은 핫워드에 더해집니다. 순서는 패널 입력 > 방송 제목·태그·채널명 > 주제 사전 >
+  설명문이고, 개수·토큰 상한(40단어, 약 200토큰)은 같습니다.
+- `variants`는 인식 중·확정 자막 모두에서 `term`으로 바뀝니다. 3글자 미만은 무시하고 긴 것부터 적용합니다.
+  실제 자막 로그에서 확인된 오인식만 넣습니다.
+- 플레이어 패널의 **주제 사전**에서 고릅니다(`remote_captions.TOPICS`). 측정: `bench_latency.py run ... --topic politics`.

@@ -1,0 +1,6 @@
+{
+ "topic": "politics",
+ "title": "정치",
+ "note": "term = 자막에 보일 표기, category = 기관/제도/정당/외교 등, hotword = 핫워드로 보낼지, variants = 실제 자막 로그에서 확인된 오인식·다른 표기(3글자 이상). 현직 인명은 사용자가 확인한 것만 넣습니다.",
+ "entries": []
+}

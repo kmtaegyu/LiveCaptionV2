@@ -15,6 +15,8 @@ from PySide6.QtWebSockets import QWebSocket
 logger = logging.getLogger("livecaption.remote")
 # Caption server address; set LIVECAPTION_SERVER or type it in the panel.
 DEFAULT_SERVER = os.environ.get("LIVECAPTION_SERVER", "localhost:8000")
+# Topic dictionaries on the server (server/dictionaries/<code>.json); None = no dictionary.
+TOPICS = [("주제 사전 없음", None), ("정치", "politics")]
 LANGUAGES = [("한국어", "ko"), ("자동 감지", None), ("영어", "en"), ("일본어", "ja"), ("중국어", "zh")]
 
 
@@ -105,7 +107,7 @@ class RemoteCaptionClient(QObject):
         self.active = False
         self.state = "idle"
 
-    def start(self, server: str, url: str, language=None, diarization=False, keywords=""):
+    def start(self, server: str, url: str, language=None, diarization=False, keywords="", topic=None):
         self.stop(silent=True)
         self.server = server
         self.request = {"type": "start", "url": url, "language": language,
@@ -113,6 +115,8 @@ class RemoteCaptionClient(QObject):
         if keywords:
             # Hotwords typed in the panel; the server merges them with the broadcast's own.
             self.request["keywords"] = keywords
+        if topic:
+            self.request["topic"] = topic
         self.session = None
         self._set_active(True)
         target = websocket_url(server)
@@ -179,9 +183,10 @@ class RemoteCaptionClient(QObject):
                 self.socket.close()
         elif kind == "session":
             self.session = {"id": str(event.get("id", "")), "title": event.get("title"),
-                            "live": event.get("live"), "hotwords": event.get("hotwords")}
+                            "live": event.get("live"), "hotwords": event.get("hotwords"),
+                            "topic": event.get("topic")}
             logger.info("Caption session %s: %s", self.session["id"], self.session["title"])
-            logger.info("Caption hotwords: %s", self.session["hotwords"])
+            logger.info("Caption topic: %s, hotwords: %s", self.session["topic"], self.session["hotwords"])
             self.session_started.emit(self.session)
 
     def _emit_status(self, state, detail):

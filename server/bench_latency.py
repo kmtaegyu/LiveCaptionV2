@@ -50,10 +50,16 @@ def record(url: str, out: str, seconds: int):
 
 
 async def run(pcm: str, whisper_url: str, same_output: int, language: str, out: str, tail: float,
-              hotwords: str | None = None):
+              hotwords: str | None = None, topic: str | None = None):
     import websockets
+    from topics import load_topic
     audio = Path(pcm).read_bytes()
-    tracker = SegmentTracker()
+    dictionary = load_topic(topic)
+    tracker = SegmentTracker(dictionary.replacements if dictionary else None)
+    if dictionary and dictionary.hotwords:
+        # Same merge and limits as caption_api: given words first, then the topic's terms.
+        from hotwords import build_hotwords
+        hotwords = build_hotwords(None, hotwords, dictionary.hotwords)
     first, finals, texts = {}, {}, {}
     fed = 0.0
     options = {"uid": f"bench-{time.time():.0f}", "language": language, "task": "transcribe",
@@ -96,7 +102,7 @@ async def run(pcm: str, whisper_url: str, same_output: int, language: str, out: 
         await feed()
         receiver.cancel()
     ids = [caption for caption in texts]
-    result = {"pcm": pcm, "whisper": whisper_url, "same_output": same_output, "hotwords": hotwords,
+    result = {"pcm": pcm, "whisper": whisper_url, "same_output": same_output, "hotwords": hotwords, "topic": topic,
               "first": [round(first[i], 3) for i in ids if i in first],
               "final": [round(finals[i], 3) for i in ids],
               "text": [texts[i] for i in ids]}
@@ -154,6 +160,7 @@ def main():
     go.add_argument("--language", default="ko")
     go.add_argument("--tail", type=float, default=8.0, help="seconds to wait for the last captions")
     go.add_argument("--hotwords", help="space-separated hotwords, as caption_api would send")
+    go.add_argument("--topic", help="topic dictionary (dictionaries/<topic>.json)")
     go.add_argument("--out", required=True)
     ref = sub.add_parser("reference")
     ref.add_argument("pcm")
@@ -169,7 +176,7 @@ def main():
         reference(args.pcm, args.out, args.model, args.language)
     elif args.command == "run":
         asyncio.run(run(args.pcm, args.whisper, args.same_output, args.language, args.out, args.tail,
-                        args.hotwords))
+                        args.hotwords, args.topic))
     else:
         compare(args.results)
 

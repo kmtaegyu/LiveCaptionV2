@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QGroupBox, 
     QLabel, QLineEdit, QListWidget, QPushButton, QSpinBox, QToolButton, QVBoxLayout, QWidget)
 
 from caption_server import DEFAULT_PORT
-from remote_captions import DEFAULT_SERVER, LANGUAGES
+from remote_captions import DEFAULT_SERVER, LANGUAGES, TOPICS
 from ui_theme import ACCENT, MUTED, speaker_color
 
 STATE_COLORS = {"running": "#3ccf6e", "connecting": "#e3b341", "resolving": "#e3b341",
@@ -99,6 +99,13 @@ class CaptionPanel(QWidget):
                                  "다음 시작부터 적용됩니다.")
         self.keywords.setClearButtonEnabled(True)
         layout.addWidget(self.keywords)
+        self.topic = QComboBox()
+        for label, code in TOPICS:
+            self.topic.addItem(label, code)
+        self.topic.setAccessibleName("주제 사전")
+        self.topic.setToolTip("서버의 주제 사전(server/dictionaries)을 씁니다. 사전의 용어를 핫워드에 더하고\n"
+                              "알려진 오인식을 바로잡습니다. 다음 시작부터 적용됩니다.")
+        layout.addWidget(self.topic)
         self.auto_start = QCheckBox("YouTube 영상을 열면 자동으로 시작")
         self.auto_start.setChecked(True)
         layout.addWidget(self.auto_start)
@@ -122,12 +129,13 @@ class CaptionPanel(QWidget):
 
     def ai_options(self):
         return {"server": self.server.text().strip(), "language": self.language.currentData(),
-                "diarization": self.diarization.isChecked(), "keywords": self.keywords.text().strip()}
+                "diarization": self.diarization.isChecked(), "keywords": self.keywords.text().strip(),
+                "topic": self.topic.currentData()}
 
     def set_ai_active(self, active):
         self.ai_button.setChecked(active)
         self.ai_button.setText("AI 자막 중지" if active else "AI 자막 시작")
-        for widget in (self.server, self.language, self.diarization, self.keywords):
+        for widget in (self.server, self.language, self.diarization, self.keywords, self.topic):
             widget.setEnabled(not active)
 
     def set_ai_status(self, state, detail):

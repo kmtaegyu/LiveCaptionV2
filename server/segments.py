@@ -33,13 +33,28 @@ SPELLINGS = {
     "시시티비": "CCTV", "지피에스": "GPS", "오티티": "OTT", "엘엔지": "LNG", "에프티에이": "FTA",
     "아이시티": "ICT", "엠오유": "MOU", "디엔에이": "DNA", "지세븐": "G7", "지트웬티": "G20",
 }
-_SPELLING = re.compile("|".join(sorted(map(re.escape, SPELLINGS), key=len, reverse=True)))
 
 
-def clean_text(text: str) -> str:
-    """Collapse whitespace and runs of 4+ repeated words to two; apply SPELLINGS."""
+def replacement_pattern(replacements: dict):
+    """One regex over all keys, longest first, so a long key wins over a key inside it."""
+    if not replacements:
+        return None
+    return re.compile("|".join(sorted(map(re.escape, replacements), key=len, reverse=True)))
+
+
+_SPELLING = replacement_pattern(SPELLINGS)
+
+
+def clean_text(text: str, replacements: dict | None = None, pattern=None) -> str:
+    """Collapse whitespace and runs of 4+ repeated words to two; apply SPELLINGS
+    (or ``replacements``, e.g. SPELLINGS plus a topic dictionary, with its ``pattern``)."""
     text = " ".join(text.split())
-    text = _SPELLING.sub(lambda match: SPELLINGS[match.group()], text)
+    if replacements is None:
+        replacements, pattern = SPELLINGS, _SPELLING
+    elif pattern is None:
+        pattern = replacement_pattern(replacements)
+    if pattern is not None:
+        text = pattern.sub(lambda match: replacements[match.group()], text)
     return _REPEAT.sub(r"\1 \1", text)
 
 
@@ -62,7 +77,10 @@ def to_ms(value) -> int:
 class SegmentTracker:
     SEEN_LIMIT = 500
 
-    def __init__(self):
+    def __init__(self, replacements: dict | None = None):
+        # SPELLINGS plus any topic dictionary's variant -> term rules; topic rules win on a tie.
+        self.replacements = {**SPELLINGS, **(replacements or {})}
+        self.pattern = replacement_pattern(self.replacements)
         self.seen = set()
         self.seen_order = deque()
         self.counter = 0
@@ -95,7 +113,7 @@ class SegmentTracker:
             if key in self.seen:
                 continue
             self._remember(key)
-            text = clean_text(segment.get("text") or "")
+            text = clean_text(segment.get("text") or "", self.replacements, self.pattern)
             if is_hallucination(text) or normalize(text) == normalize(self.last_final):
                 continue
             caption_id = self.live_id or self._new_id()
@@ -109,7 +127,7 @@ class SegmentTracker:
             events.append(event)
         last = segments[-1] if segments else None
         if last is not None and not last.get("completed"):
-            text = clean_text(last.get("text") or "")
+            text = clean_text(last.get("text") or "", self.replacements, self.pattern)
             if is_hallucination(text) or normalize(text) == normalize(self.last_final):
                 if self.live_id is not None and not events:
                     self._drop_live(events)

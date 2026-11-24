@@ -31,6 +31,7 @@ from media import (SAMPLE_RATE, ffmpeg_command, ffmpeg_env, first_segment, first
                    parse_first_pts, resolve_media, timeline_epoch)
 from hotwords import build_hotwords
 from segments import SegmentTracker, to_srt, to_webvtt
+from topics import load_topic
 
 WHISPER_URL = os.environ.get("WHISPER_URL", "ws://127.0.0.1:9095")
 WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "large-v3-turbo")
@@ -63,7 +64,7 @@ HLS_ROOT.mkdir(parents=True, exist_ok=True)
 
 class Session:
     def __init__(self, url: str, language, diarization: bool, max_speakers: int, video: bool,
-                 keywords: str = ""):
+                 keywords: str = "", topic=None):
         self.id = uuid.uuid4().hex[:12]
         self.url = url
         self.language = language
@@ -73,8 +74,10 @@ class Session:
         self.hls_dir = HLS_ROOT / self.id if video else None
         self.title = url
         self.keywords = keywords
+        # Topic dictionary (dictionaries/<topic>.json): extra hotwords and spelling fixes.
+        self.topic = load_topic(topic)
         self.hotwords = None
-        self.tracker = SegmentTracker()
+        self.tracker = SegmentTracker(self.topic.replacements if self.topic else None)
         self.started = time.time()
         self.audio_seconds = 0.0
         self.epoch = None
@@ -177,11 +180,14 @@ async def run_session(ws: WebSocket, session: Session):
         await status(ws, session, "error", f"스트림 주소 확인 실패: {error}")
         return
     session.title = media["title"]
-    # Words typed in the player come first, then the broadcast's own (unless turned off).
-    session.hotwords = build_hotwords(media if USE_HOTWORDS else None, session.keywords)
+    # Words typed in the player come first, then the broadcast's own (unless turned off),
+    # then the topic dictionary's terms.
+    session.hotwords = build_hotwords(media if USE_HOTWORDS else None, session.keywords,
+                                      session.topic.hotwords if session.topic else None)
     logger.info("[%s] hotwords: %s", session.id, session.hotwords)
     announce = {"type": "session", "id": session.id, "title": session.title, "live": media["live"],
-                "hotwords": session.hotwords}
+                "hotwords": session.hotwords,
+                "topic": session.topic.name if session.topic else None}
     if session.video:
         session.hls_dir.mkdir(parents=True, exist_ok=True)
         announce["hls"] = f"/hls/{session.id}/index.m3u8"
@@ -300,7 +306,7 @@ async def captions(ws: WebSocket):
                 keywords = keywords[:MAX_KEYWORD_CHARS] if isinstance(keywords, str) else ""
                 session = Session(url, language, bool(message.get("diarization")),
                                   int(message.get("max_speakers") or 4), bool(message.get("video")),
-                                  keywords)
+                                  keywords, message.get("topic"))
                 keep(session)
                 runner = asyncio.create_task(run_session(ws, session))
             elif message.get("type") == "stop" and runner:

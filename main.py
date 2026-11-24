@@ -357,6 +357,7 @@ class PlayerWindow(QMainWindow):
         panel.auto_start.setChecked(self.settings.value("ai/auto_start", True, type=bool))
         keywords = self.settings.value("ai/keywords", "")
         # An INI value with commas comes back as a list ("APEC, 머신러닝" -> ["APEC", "머신러닝"]).
+        panel.topic.setCurrentIndex(max(0, panel.topic.findData(self.settings.value("ai/topic", "") or None)))
         panel.keywords.setText(", ".join(map(str, keywords)) if isinstance(keywords, list) else str(keywords))
         panel.font_size.setValue(self.settings.value("view/font_size", 22, type=int))
         panel.join_box.setChecked(self.settings.value("view/join_sentences", True, type=bool))
@@ -370,6 +371,7 @@ class PlayerWindow(QMainWindow):
         self.settings.setValue("ai/diarization", panel.diarization.isChecked())
         self.settings.setValue("ai/auto_start", panel.auto_start.isChecked())
         self.settings.setValue("ai/keywords", panel.keywords.text().strip())
+        self.settings.setValue("ai/topic", panel.topic.currentData() or "")
         self.settings.setValue("view/font_size", panel.font_size.value())
         self.settings.setValue("view/join_sentences", panel.join_box.isChecked())
         self.settings.setValue("sync/delay", panel.delay.value())
@@ -402,7 +404,7 @@ class PlayerWindow(QMainWindow):
         self.reset_delay_samples()       # a new caption session numbers sentences from c1 again
         self.update_sync_mode()
         self.remote.start(options["server"], url, options["language"], options["diarization"],
-                          options["keywords"])
+                          options["keywords"], options["topic"])
         return True
 
     def on_ai_status(self, state, detail):

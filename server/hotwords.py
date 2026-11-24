@@ -2,9 +2,10 @@
 
 Whisper is nudged toward rare words (names, products, acronyms) when they sit
 in its prompt. Instead of a topic dictionary prepared in advance, the words
-come from the broadcast being opened, in this order: words the presenter
-typed, the title, the tags, the channel name, and description words that
-come up at least twice (the description is mostly sentences and links).
+come from several sources, in this order: words the presenter typed, the
+broadcast's title, tags and channel name, the chosen topic dictionary's
+hotword terms (topics.py), and description words that come up at least twice
+(the description is mostly sentences and links).
 
 The list stays short (MAX_WORDS, at most about MAX_TOKENS prompt tokens):
 faster-whisper keeps only the last half of its 448-token prompt for hotwords,
@@ -98,8 +99,8 @@ def keyword_list(text) -> list[str]:
     return [word for word in re.split(r"[,\s;]+", str(text)) if len(word) >= 2]
 
 
-def build_hotwords(media: dict | None, keywords=None, max_words: int = MAX_WORDS,
-                   max_tokens: int = MAX_TOKENS) -> str | None:
+def build_hotwords(media: dict | None, keywords=None, topic_terms=None,
+                   max_words: int = MAX_WORDS, max_tokens: int = MAX_TOKENS) -> str | None:
     """One space-separated hotword string for WhisperLive, or None when nothing is left."""
     media = media or {}
     description_text = str(media.get("description") or "")[:DESCRIPTION_CHARS]
@@ -109,7 +110,7 @@ def build_hotwords(media: dict | None, keywords=None, max_words: int = MAX_WORDS
     counts = Counter(word.lower() for word in title + description)
     repeated = [word for word in description if counts[word.lower()] >= 2]
     sources = [keyword_list(keywords), title, words_of(media.get("tags")),
-               words_of(media.get("author")), repeated]
+               words_of(media.get("author")), list(topic_terms or []), repeated]
     chosen, seen, budget = [], set(), max_tokens
     for words in sources:
         for word in words:
