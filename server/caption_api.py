@@ -40,9 +40,13 @@ WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "large-v3-turbo")
 SAME_OUTPUT_THRESHOLD = int(os.environ.get("WHISPER_SAME_OUTPUT", "3"))
 # Automatic hotwords (the broadcast's title/tags/channel and the topic dictionary's terms) are
 # OFF by default: on a live hearing the model recited the 20-word list over pauses instead of
-# transcribing ("KBS사장, 후보자, 인사청문준비단, 배경훈, 무제한 토론 종결."). 1 turns them on.
-# Words the presenter types are always sent; the topic dictionary still fixes and marks captions.
-USE_HOTWORDS = os.environ.get("LIVECAPTION_HOTWORDS", "0") == "1"
+# transcribing ("KBS사장, 후보자, 인사청문준비단, 배경훈, 무제한 토론 종결."), and with only
+# three typed words a four-sentence answer came out as that three-word list. So nothing is sent
+# as hotwords unless asked for: LIVECAPTION_HOTWORDS=typed sends the words typed in the player,
+# =1 also the automatic ones. The topic dictionary still fixes and marks captions either way.
+HOTWORD_MODE = os.environ.get("LIVECAPTION_HOTWORDS", "0").strip().lower()
+USE_HOTWORDS = HOTWORD_MODE == "1"
+USE_TYPED_HOTWORDS = HOTWORD_MODE in {"1", "typed"}
 API_TOKEN = os.environ.get("LIVECAPTION_TOKEN", "")
 HF_TOKEN = os.environ.get("HF_TOKEN")
 APP_DIR = Path(__file__).resolve().parent
@@ -214,7 +218,8 @@ async def run_session(ws: WebSocket, session: Session):
                     session.topic.matched_groups(" ".join(str(media.get(key) or "") for key in
                                                           ("title", "author", "description", "tags"))
                                                  + " " + session.keywords))
-    session.hotwords = build_hotwords(media if USE_HOTWORDS else None, session.keywords,
+    session.hotwords = build_hotwords(media if USE_HOTWORDS else None,
+                                      session.keywords if USE_TYPED_HOTWORDS else None,
                                       topic_terms if USE_HOTWORDS else None)
     session.tracker.set_prompt(session.hotwords)
     logger.info("[%s] hotwords: %s", session.id, session.hotwords)

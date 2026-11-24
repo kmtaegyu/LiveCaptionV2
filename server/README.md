@@ -44,7 +44,7 @@ curl localhost:8000/health        # {"ok":true,"whisper":"up",...}
 | `WHISPER_BEAM_SIZE` | `1` | 디코딩 beam 크기 |
 | `WHISPER_SAME_OUTPUT` | `3` | 같은 결과가 몇 번 반복되면 문장을 확정할지 |
 | `WHISPER_MIN_CHUNK` | `1.0` | 인식을 시작하기 전에 모을 음성(초) |
-| `LIVECAPTION_HOTWORDS` | `0` | `1`이면 방송 정보·주제 사전에서 뽑은 자동 핫워드를 보냄. 기본은 끔: 실제 청문회 방송에서 모델이 핫워드 목록을 자막으로 그대로 읊는 일이 있었음(2026-11-24). 패널에 직접 입력한 핫워드는 항상 보냄 |
+| `LIVECAPTION_HOTWORDS` | `0` | 핫워드를 모델에 보낼지. `0` = 보내지 않음(기본), `typed` = 플레이어에 입력한 것만, `1` = 방송 정보·주제 사전의 자동 핫워드까지. 실제 청문회 방송에서 모델이 핫워드 목록을 자막으로 읊고 발화를 빠뜨려 기본은 끔(아래 측정). 플레이어의 입력칸은 `LIVECAPTION_ENABLE_HOTWORDS=1`로 실행해야 열림 |
 | `HF_TOKEN` | (없음) | 화자 구분(pyannote) 모델 다운로드 |
 
 ## 프로토콜

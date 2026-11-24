@@ -5,6 +5,7 @@ import time
 import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+os.environ.setdefault("LIVECAPTION_ENABLE_HOTWORDS", "1")     # the hotword box is locked by default
 os.environ.setdefault("LIVECAPTION_SETTINGS", os.path.join(
     __import__("tempfile").mkdtemp(prefix="livecaption-test-"), "settings.ini"))
 
@@ -270,6 +271,16 @@ class CaptionWindowTest(unittest.TestCase):
         panel.mark_box.setChecked(False)
         self.assertEqual(label.marks, ())
         panel.mark_box.setChecked(True)
+
+    def test_hotword_box_is_locked_unless_enabled(self):
+        from caption_panel import CaptionPanel
+        from unittest import mock
+        with mock.patch.dict(os.environ, {"LIVECAPTION_ENABLE_HOTWORDS": "0"}):
+            panel = CaptionPanel()
+        panel.keywords.setText("APEC")
+        self.assertFalse(panel.keywords.isEnabled())
+        self.assertEqual(panel.ai_options()["keywords"], "")
+        self.assertTrue(panel.topic.isEnabled())
 
     def test_ai_start_requires_a_stream_url(self):
         window = self.window

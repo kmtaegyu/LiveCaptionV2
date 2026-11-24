@@ -1,5 +1,6 @@
 """Side panel: AI caption server, sync controls, the cue list and other sources."""
 import math
+import os
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont
@@ -98,6 +99,13 @@ class CaptionPanel(QWidget):
         layout.addLayout(options)
         self.keywords = QLineEdit()
         self.keywords.setPlaceholderText("핫워드 (쉼표로 구분, 예: APEC, 머신러닝)")
+        # Hotwords made the model recite the list instead of transcribing (measured 2026-11-24),
+        # so the box is locked unless LIVECAPTION_ENABLE_HOTWORDS=1 (the server needs
+        # LIVECAPTION_HOTWORDS=typed as well).
+        self.hotwords_enabled = os.environ.get("LIVECAPTION_ENABLE_HOTWORDS") == "1"
+        if not self.hotwords_enabled:
+            self.keywords.setEnabled(False)
+            self.keywords.setPlaceholderText("핫워드 (꺼 둠: 목록을 자막으로 읊는 문제)")
         self.keywords.setAccessibleName("인식 핫워드")
         self.keywords.setToolTip("방송에 나올 고유명사·약어를 넣으면 인식이 그 단어 쪽으로 기웁니다.\n"
                                  "방송 제목·태그·채널명에서 뽑은 단어와 합쳐 서버로 보냅니다. "
@@ -140,7 +148,8 @@ class CaptionPanel(QWidget):
 
     def ai_options(self):
         return {"server": self.server.text().strip(), "language": self.language.currentData(),
-                "diarization": self.diarization.isChecked(), "keywords": self.keywords.text().strip(),
+                "diarization": self.diarization.isChecked(),
+                "keywords": self.keywords.text().strip() if self.hotwords_enabled else "",
                 "topic": self.topic.currentData()}
 
     def set_ai_active(self, active):
