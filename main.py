@@ -303,6 +303,7 @@ class PlayerWindow(QMainWindow):
         panel.delay_video_requested.connect(self.delay_video)
         panel.go_live_requested.connect(self.go_live)
         panel.ai_toggled.connect(self.toggle_ai_captions)
+        panel.recognition_changed.connect(self.apply_recognition_options)
         panel.export_requested.connect(self.export_captions)
 
     def setup_shortcuts(self):
@@ -384,6 +385,17 @@ class PlayerWindow(QMainWindow):
             self.start_ai_captions()
         else:
             self.remote.stop()
+
+    def apply_recognition_options(self):
+        """Topic or hotwords changed while captions run: restart the session with them."""
+        request = self.remote.request
+        if not self.remote.active or not request:
+            return
+        options = self.caption_panel.ai_options()
+        if (options["keywords"], options["topic"]) == (request.get("keywords", ""), request.get("topic")):
+            return                      # e.g. the hotword box only lost focus
+        logger.info("Recognition options changed; restarting AI captions")
+        self.start_ai_captions(request["url"])
 
     def start_ai_captions(self, url=None):
         url = url or self.page_url

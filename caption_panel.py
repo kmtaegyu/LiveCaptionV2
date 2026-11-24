@@ -39,6 +39,7 @@ class CaptionPanel(QWidget):
     visibility_toggled = Signal(bool)
     font_size_changed = Signal(int)
     ai_toggled = Signal(bool)
+    recognition_changed = Signal()     # topic or hotwords edited: a running session restarts with them
     export_requested = Signal(str)
 
     def __init__(self):
@@ -96,15 +97,17 @@ class CaptionPanel(QWidget):
         self.keywords.setAccessibleName("인식 핫워드")
         self.keywords.setToolTip("방송에 나올 고유명사·약어를 넣으면 인식이 그 단어 쪽으로 기웁니다.\n"
                                  "방송 제목·태그·채널명에서 뽑은 단어와 합쳐 서버로 보냅니다. "
-                                 "다음 시작부터 적용됩니다.")
+                                 "Enter를 누르면 바로 적용됩니다.")
         self.keywords.setClearButtonEnabled(True)
+        self.keywords.editingFinished.connect(self.recognition_changed)
         layout.addWidget(self.keywords)
         self.topic = QComboBox()
         for label, code in TOPICS:
             self.topic.addItem(label, code)
         self.topic.setAccessibleName("주제 사전")
         self.topic.setToolTip("서버의 주제 사전(server/dictionaries)을 씁니다. 사전의 용어를 핫워드에 더하고\n"
-                              "알려진 오인식을 바로잡습니다. 다음 시작부터 적용됩니다.")
+                              "알려진 오인식을 바로잡습니다. 고르면 바로 적용됩니다.")
+        self.topic.currentIndexChanged.connect(lambda _index: self.recognition_changed.emit())
         layout.addWidget(self.topic)
         self.auto_start = QCheckBox("YouTube 영상을 열면 자동으로 시작")
         self.auto_start.setChecked(True)
@@ -135,7 +138,8 @@ class CaptionPanel(QWidget):
     def set_ai_active(self, active):
         self.ai_button.setChecked(active)
         self.ai_button.setText("AI 자막 중지" if active else "AI 자막 시작")
-        for widget in (self.server, self.language, self.diarization, self.keywords, self.topic):
+        # Topic and hotwords stay editable: changing them restarts the session (recognition_changed).
+        for widget in (self.server, self.language, self.diarization):
             widget.setEnabled(not active)
 
     def set_ai_status(self, state, detail):

@@ -266,9 +266,29 @@ class CaptionWindowTest(unittest.TestCase):
         panel.keywords.setText(" APEC, 머신러닝 ")
         self.assertTrue(window.start_ai_captions("https://www.youtube.com/live/x"))
         self.assertEqual(window.remote.request["keywords"], "APEC, 머신러닝")
-        self.assertFalse(panel.keywords.isEnabled())
+        # Topic and hotwords can be changed while captions run; that restarts the session.
+        self.assertTrue(panel.keywords.isEnabled() and panel.topic.isEnabled())
+        self.assertFalse(panel.server.isEnabled())
+        starts = []
+        original = window.remote.start
+        window.remote.start = lambda *args: (starts.append(args), original(*args))
+        panel.keywords.editingFinished.emit()                    # nothing changed: no restart
+        self.assertEqual(starts, [])
+        panel.topic.setCurrentIndex(panel.topic.findData("politics"))
+        self.assertEqual(len(starts), 1)
+        self.assertEqual(window.remote.request["topic"], "politics")
+        self.assertEqual(window.remote.request["url"], "https://www.youtube.com/live/x")
+        panel.keywords.setText("APEC, 머신러닝, 엔비디아")
+        panel.keywords.editingFinished.emit()
+        self.assertEqual(window.remote.request["keywords"], "APEC, 머신러닝, 엔비디아")
+        self.assertEqual(len(starts), 2)
+        panel.keywords.setText("APEC, 머신러닝")
+        panel.keywords.editingFinished.emit()
+        self.assertEqual(len(starts), 3)
+        window.remote.start = original
         self.wait_for(lambda: not window.remote.active)
-        self.assertTrue(panel.keywords.isEnabled())
+        panel.topic.setCurrentIndex(0)                           # idle: nothing starts
+        self.assertFalse(window.remote.active)
         self.assertEqual(window.settings.value("ai/keywords"), "APEC, 머신러닝")
         panel.keywords.clear()
         self.assertTrue(window.start_ai_captions("https://www.youtube.com/live/x"))
