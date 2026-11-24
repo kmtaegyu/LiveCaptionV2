@@ -15,7 +15,7 @@ whole. ``Topic.select_hotwords`` picks for one broadcast, in this order:
   1. entries whose ``role`` is named in the broadcast's title, tags or description
      ("행정안전부 장관" -> that minister's name),
   2. the terms of every ``group`` the broadcast touches (one of the group's triggers
-     or member terms occurs in that text), most-touched group first,
+     or member terms occurs in that text), taking turns between the groups,
   3. the entries marked ``hotword: true`` (the always-on few).
 Entries with ``"confirmed": false`` (e.g. names not yet checked by a person) are
 ignored entirely. Pure Python, unit-tested.
@@ -61,8 +61,10 @@ class Topic:
         parts += list(media.get("tags") or [])
         text = " ".join(str(part) for part in parts if part)
         chosen = [term for role, term in self.roles if role in text]
-        for name in self.matched_groups(text):
-            chosen += self.groups[name]["terms"]
+        # Take turns between the matched groups, so the few words that fit come from all of them.
+        queues = [list(self.groups[name]["terms"]) for name in self.matched_groups(text)]
+        while any(queues):
+            chosen += [queue.pop(0) for queue in queues if queue]
         chosen += self.hotwords
         return list(dict.fromkeys(chosen))
 
