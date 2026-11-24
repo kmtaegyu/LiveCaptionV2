@@ -29,6 +29,7 @@ from fastapi.staticfiles import StaticFiles
 
 from media import (SAMPLE_RATE, ffmpeg_command, ffmpeg_env, first_segment, first_timestamps,
                    parse_first_pts, resolve_media, timeline_epoch)
+from hotwords import build_hotwords
 from segments import SegmentTracker, to_srt, to_webvtt
 
 WHISPER_URL = os.environ.get("WHISPER_URL", "ws://127.0.0.1:9095")
@@ -36,6 +37,8 @@ WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "large-v3-turbo")
 # How many identical passes finalise an in-progress sentence. Each pass is one decode plus
 # 0.1 s, so this sets most of the delay between the end of speech and the final caption.
 SAME_OUTPUT_THRESHOLD = int(os.environ.get("WHISPER_SAME_OUTPUT", "3"))
+# Hotwords from the broadcast's title, tags and channel (hotwords.py); 0 turns them off.
+USE_HOTWORDS = os.environ.get("LIVECAPTION_HOTWORDS", "1") != "0"
 API_TOKEN = os.environ.get("LIVECAPTION_TOKEN", "")
 HF_TOKEN = os.environ.get("HF_TOKEN")
 APP_DIR = Path(__file__).resolve().parent
@@ -67,6 +70,7 @@ class Session:
         self.video = video
         self.hls_dir = HLS_ROOT / self.id if video else None
         self.title = url
+        self.hotwords = None
         self.tracker = SegmentTracker()
         self.started = time.time()
         self.audio_seconds = 0.0
@@ -170,7 +174,11 @@ async def run_session(ws: WebSocket, session: Session):
         await status(ws, session, "error", f"스트림 주소 확인 실패: {error}")
         return
     session.title = media["title"]
-    announce = {"type": "session", "id": session.id, "title": session.title, "live": media["live"]}
+    if USE_HOTWORDS:
+        session.hotwords = build_hotwords(media)
+    logger.info("[%s] hotwords: %s", session.id, session.hotwords)
+    announce = {"type": "session", "id": session.id, "title": session.title, "live": media["live"],
+                "hotwords": session.hotwords}
     if session.video:
         session.hls_dir.mkdir(parents=True, exist_ok=True)
         announce["hls"] = f"/hls/{session.id}/index.m3u8"
@@ -185,6 +193,8 @@ async def run_session(ws: WebSocket, session: Session):
                        "model": WHISPER_MODEL, "use_vad": True, "audio_format": "int16",
                        "send_last_n_segments": 10, "no_speech_thresh": 0.45,
                        "same_output_threshold": SAME_OUTPUT_THRESHOLD}
+            if session.hotwords:
+                options["hotwords"] = session.hotwords
             if session.diarization:
                 options.update(enable_diarization=True, max_speakers=session.max_speakers,
                                diarization_threshold=0.55)

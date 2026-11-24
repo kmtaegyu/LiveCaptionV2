@@ -54,18 +54,44 @@ def resolve_live_audio(url: str):
     session = Streamlink()
     _name, plugin_class, resolved = session.resolve_url(url)
     plugin = plugin_class(session, resolved)
+    details = capture_video_details(plugin)
     audio = pick_live_audio(plugin.streams())
     if audio is None:
         return None
     return {"video": None, "audio": audio, "headers": {}, "title": plugin.get_title() or url,
-            "live": True, "bandwidth": 0}
+            "live": True, "bandwidth": 0, "author": plugin.get_author(),
+            "category": plugin.get_category(), "description": details.get("shortDescription"),
+            "tags": details.get("keywords") or []}
+
+
+def capture_video_details(plugin) -> dict:
+    """Keep the YouTube page's ``videoDetails`` (tags, description) that streamlink reads anyway.
+
+    streamlink parses the page's initial player response but exposes only the title, author and
+    category, so its parser is wrapped to see the same dict. No extra request; if streamlink
+    changes shape, the dict stays empty and hotwords fall back to the title and channel.
+    """
+    captured = {}
+    original = getattr(plugin, "_get_data_from_regex", None)
+    if not callable(original):
+        return captured
+
+    def capture(res, regex, descr):
+        data = original(res, regex, descr)
+        if isinstance(data, dict) and isinstance(data.get("videoDetails"), dict):
+            captured.update(data["videoDetails"])
+        return data
+
+    plugin._get_data_from_regex = capture
+    return captured
 
 
 def resolve_media(url: str, want_video: bool, max_height: int = 1080) -> dict:
     """Return {"video", "audio", "headers", "title", "live", "bandwidth"} for FFmpeg.
 
     ``video`` is None when not relaying video. ``audio`` is None when the video
-    URL already carries the audio track (one muxed input).
+    URL already carries the audio track (one muxed input). YouTube results also
+    carry "author", "category", "description" and "tags", the hotword material.
     """
     if not is_youtube(url):
         return {"video": url if want_video else None, "audio": None if want_video else url,
@@ -99,7 +125,10 @@ def resolve_media(url: str, want_video: bool, max_height: int = 1080) -> dict:
     audio = next((f for f in parts if f is not video), None)
     result = {"headers": info.get("http_headers") or {}, "title": info.get("title") or url,
               "live": info.get("is_live"),
-              "bandwidth": round(sum((f.get("tbr") or 0) for f in parts) * 1000)}
+              "bandwidth": round(sum((f.get("tbr") or 0) for f in parts) * 1000),
+              "author": info.get("channel") or info.get("uploader"),
+              "category": ", ".join(info.get("categories") or []) or None,
+              "description": info.get("description"), "tags": info.get("tags") or []}
     if want_video:
         if video is None:
             raise ValueError("이 스트림에서 영상 트랙을 찾지 못했습니다.")

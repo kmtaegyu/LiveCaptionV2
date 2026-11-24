@@ -13,6 +13,7 @@
 | --- | --- |
 | `caption_api.py` | 세션, FFmpeg 실행, WhisperLive 연결, 자막 전송, SRT/VTT 내보내기 |
 | `media.py` | 스트림 주소 확인, FFmpeg 명령, 첫 음성 PTS 읽기 |
+| `hotwords.py` | 방송 제목·태그·채널명·설명에서 인식 핫워드 만들기(최대 40단어, 약 200토큰) |
 | `segments.py` | WhisperLive 결과 → 자막 이벤트(인식 중과 확정을 같은 id로 잇고, 중복·환각 문구 제거) |
 | `run_whisper.py` | WhisperLive 실행(`--beam-size`, `--min-chunk`) |
 | `start.sh` | 두 서버를 백그라운드로 (재)시작, 로그는 `logs/` |
@@ -42,6 +43,7 @@ curl localhost:8000/health        # {"ok":true,"whisper":"up",...}
 | `WHISPER_BEAM_SIZE` | `1` | 디코딩 beam 크기 |
 | `WHISPER_SAME_OUTPUT` | `3` | 같은 결과가 몇 번 반복되면 문장을 확정할지 |
 | `WHISPER_MIN_CHUNK` | `1.0` | 인식을 시작하기 전에 모을 음성(초) |
+| `LIVECAPTION_HOTWORDS` | `1` | `0`이면 방송 정보에서 뽑는 자동 핫워드를 끔 |
 | `HF_TOKEN` | (없음) | 화자 구분(pyannote) 모델 다운로드 |
 
 ## 프로토콜
@@ -55,7 +57,8 @@ curl localhost:8000/health        # {"ok":true,"whisper":"up",...}
 서버 → 플레이어
 
 - `{"type":"status","state":"resolving|connecting|running|ended|stopped|error","detail":"..."}`
-- `{"type":"session","id":"...","title":"...","live":true}`
+- `{"type":"session","id":"...","title":"...","live":true,"hotwords":"KTV 국무회의 ..."}`
+  `hotwords`는 이 세션에 WhisperLive로 보낸 핫워드(없으면 `null`)
 - `{"type":"timeline","pts0":초}`: 서버가 받은 첫 음성의 방송 시각. 자막의 방송 시각 = `pts0 + stream_start/1000`
 - `{"type":"caption","id":"c3","text":"...","final":false,"speaker":null,"stream_start":ms,"stream_end":ms,"lag":ms}`
   같은 id는 그 자막을 교체하고, `final`이면 확정입니다. `{"id":"c3","remove":true}`는 철회입니다.
