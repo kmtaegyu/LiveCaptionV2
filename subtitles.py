@@ -19,6 +19,11 @@ class Cue:
     id: str | None = None
     speaker: str | None = None
     final: bool = True
+    carry: str = ""          # unfinished end of the previous sentence, shown in front of ``text``
+
+    @property
+    def display(self) -> str:
+        return f"{self.carry} {self.text}" if self.carry else self.text
 
 
 def parse_srt(text: str) -> list[Cue]:
@@ -64,7 +69,32 @@ def active_index(cues: list[Cue], position: int) -> int | None:
 
 def subtitle_at(cues: list[Cue], position: int) -> str:
     index = active_index(cues, position)
-    return "" if index is None else " ".join(cues[index].text.split())
+    return "" if index is None else " ".join(cues[index].display.split())
+
+
+# Streaming recognition finalises a caption wherever Whisper put a segment boundary, often
+# mid-phrase ("수출과 투자" / "중심으로 ..."). A caption whose predecessor did not end its
+# sentence shows that predecessor's last words in front, so the phrase reads as one block.
+_SENTENCE_END = re.compile(r"(?:[.?!…。]|[다요죠까네](?:[.?!…]*))[\"'”’)\]]*$")
+CARRY_CHARS = 24             # at most about half a line of carried words
+CARRY_GAP_MS = 1500          # only across a short pause; a long one ends the thought anyway
+
+
+def ends_sentence(text: str) -> bool:
+    return bool(_SENTENCE_END.search(text.strip()))
+
+
+def carry_tail(text: str, limit: int = CARRY_CHARS) -> str:
+    """Last whole words of ``text`` that fit in ``limit`` characters."""
+    words, size = [], 0
+    for word in reversed(text.split()):
+        size += len(word) + (1 if words else 0)
+        if size > limit and words:
+            break
+        words.insert(0, word)
+        if size > limit:
+            break
+    return " ".join(words)
 
 
 def live_duration(text: str) -> int:
@@ -83,9 +113,10 @@ class CaptionTrack:
     MAX_CUES = 2000
     ID_LOOKBACK = 50
 
-    def __init__(self):
+    def __init__(self, join_sentences: bool = True):
         self.cues: list[Cue] = []
         self.offset = 0
+        self.join_sentences = join_sentences
 
     def set_cues(self, cues):
         self.cues = list(cues)
@@ -129,8 +160,9 @@ class CaptionTrack:
             # An explicit start (auto sync) may refine the cue; arrival-stamped cues keep theirs.
             new_start = old.start if start is None else start
             new_end = end if end is not None else max(old.end, position + duration)
-            self.cues[index] = Cue(new_start, max(new_end, new_start + 1), text, cue_id,
-                                   speaker or old.speaker, final)
+            cue = Cue(new_start, max(new_end, new_start + 1), text, cue_id,
+                      speaker or old.speaker, final)
+            self.cues[index] = self._with_carry(index, cue)
             return index, True, 0
         if start is None:
             start = position
@@ -141,5 +173,16 @@ class CaptionTrack:
             del self.cues[0]
             trimmed = 1
         index = bisect_right(self.cues, start, key=lambda cue: cue.start)
-        self.cues.insert(index, Cue(start, end, text, cue_id, speaker, final))
+        self.cues.insert(index, self._with_carry(index, Cue(start, end, text, cue_id, speaker, final)))
         return index, False, trimmed
+
+    def _with_carry(self, index, cue):
+        """``cue`` with the unfinished end of the caption just before it (live captions only)."""
+        if not self.join_sentences or cue.id is None or index == 0:
+            return cue
+        previous = self.cues[index - 1]
+        if (previous.id is None or not previous.final or previous.speaker != cue.speaker
+                or cue.start - previous.end > CARRY_GAP_MS or ends_sentence(previous.text)):
+            return cue
+        carry = carry_tail(previous.text)
+        return Cue(cue.start, cue.end, cue.text, cue.id, cue.speaker, cue.final, carry) if carry else cue

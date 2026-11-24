@@ -225,6 +225,27 @@ class CaptionWindowTest(unittest.TestCase):
         self.assertIsNone(window.media_position(1000))
         window.stop_playback()
 
+    def test_unfinished_sentence_is_carried_on_screen_but_not_in_the_list(self):
+        window = self.window
+        panel = window.caption_panel
+        position = window.player.position()
+        window.receive_caption({"type": "caption", "id": "c1", "text": "수출과 투자", "final": True,
+                                "start": position, "end": position + 1000})
+        window.receive_caption({"type": "caption", "id": "c2", "text": "중심으로 회복됐습니다.",
+                                "final": True, "start": position + 1000, "end": position + 3000})
+        self.assertEqual(window.track.text_at(position + 1500), "수출과 투자 중심으로 회복됐습니다.")
+        self.assertNotIn("수출과", panel.cue_list.item(1).text())
+        window.refresh_subtitle(position + 1500)
+        self.assertEqual(window.video_view.subtitle_label.text(), "수출과 투자 중심으로 회복됐습니다.")
+        panel.join_box.setChecked(False)
+        self.assertFalse(window.track.join_sentences)
+        window.receive_caption({"type": "caption", "id": "c3", "text": "경제정책", "final": True,
+                                "start": position + 3000, "end": position + 4000})
+        window.receive_caption({"type": "caption", "id": "c4", "text": "방향을", "final": True,
+                                "start": position + 4000, "end": position + 5000})
+        self.assertEqual(window.track.text_at(position + 4500), "방향을")
+        panel.join_box.setChecked(True)
+
     def test_ai_start_requires_a_stream_url(self):
         window = self.window
         self.assertFalse(window.start_ai_captions())

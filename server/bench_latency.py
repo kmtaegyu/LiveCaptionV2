@@ -12,11 +12,13 @@ recording replayed at real-time pace, exactly as caption_api feeds the model.
 Reported per caption:
   first  = audio fed when the caption first appeared - its start  (speech start -> on screen)
   final  = audio fed when it was finalised - its end               (speech end -> final)
+  broken = share of final captions that stop mid-sentence (no 다/요/까/. ending)
 """
 import argparse
 import asyncio
 import difflib
 import json
+import re
 import statistics
 import subprocess
 import sys
@@ -29,6 +31,12 @@ from segments import SegmentTracker, normalize  # noqa: E402
 
 SAMPLE_RATE = 16000
 CHUNK = SAMPLE_RATE // 10 * 2          # 100 ms, like caption_api
+# Same rule as the player's subtitles.ends_sentence.
+SENTENCE_END = re.compile(r"(?:[.?!…。]|[다요죠까네](?:[.?!…]*))[\"'”’)\]]*$")
+
+
+def broken_share(texts) -> float:
+    return sum(not SENTENCE_END.search(text.strip()) for text in texts) / len(texts) if texts else 0.0
 
 
 def record(url: str, out: str, seconds: int):
@@ -117,7 +125,7 @@ def summary(name, result, reference=None):
         p90 = ordered[min(len(ordered) - 1, round(0.9 * (len(ordered) - 1)))]
         return f"{statistics.median(values):5.2f} / {p90:5.2f}"
     line = (f"{name:14} captions={len(result['final']):3}  first med/p90 {stats(result['first'])}s"
-            f"  final med/p90 {stats(result['final'])}s")
+            f"  final med/p90 {stats(result['final'])}s  broken {broken_share(result['text']):4.0%}")
     if reference is not None:
         a = normalize(" ".join(reference["text"]))
         b = normalize(" ".join(result["text"]))

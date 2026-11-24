@@ -271,7 +271,12 @@ class CaptionPanel(QWidget):
         self.font_size.setValue(22)
         self.font_size.setPrefix("크기 ")
         self.font_size.setAccessibleName("자막 글자 크기")
+        self.join_box = QCheckBox("문장 이어 보기")
+        self.join_box.setChecked(True)
+        self.join_box.setToolTip("문장 중간에서 끊겨 확정된 AI 자막이면, 다음 자막 앞에 그 끝부분을\n"
+                                 "이어 붙여 한 구절로 보여 줍니다. 새로 들어오는 자막부터 적용됩니다.")
         layout.addWidget(self.visible_box, 1)
+        layout.addWidget(self.join_box)
         layout.addWidget(self.font_size)
         self.visible_box.toggled.connect(self.visibility_toggled)
         self.font_size.valueChanged.connect(self.font_size_changed)

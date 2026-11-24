@@ -292,6 +292,7 @@ class PlayerWindow(QMainWindow):
         panel.visibility_toggled.connect(self.caption_button.setChecked)
         panel.visibility_toggled.connect(self.video_view.set_subtitles_visible)
         panel.font_size_changed.connect(self.video_view.set_font_size)
+        panel.join_box.toggled.connect(self.set_join_sentences)
         panel.open_srt_requested.connect(self.open_subtitle)
         panel.clear_requested.connect(self.clear_subtitles)
         panel.live_toggled.connect(self.set_live_captions)
@@ -358,6 +359,7 @@ class PlayerWindow(QMainWindow):
         # An INI value with commas comes back as a list ("APEC, 머신러닝" -> ["APEC", "머신러닝"]).
         panel.keywords.setText(", ".join(map(str, keywords)) if isinstance(keywords, list) else str(keywords))
         panel.font_size.setValue(self.settings.value("view/font_size", 22, type=int))
+        panel.join_box.setChecked(self.settings.value("view/join_sentences", True, type=bool))
         panel.delay.setValue(self.settings.value("sync/delay", 2.0, type=float))
         panel.auto_delay.setChecked(self.settings.value("sync/auto_delay", True, type=bool))
 
@@ -369,6 +371,7 @@ class PlayerWindow(QMainWindow):
         self.settings.setValue("ai/auto_start", panel.auto_start.isChecked())
         self.settings.setValue("ai/keywords", panel.keywords.text().strip())
         self.settings.setValue("view/font_size", panel.font_size.value())
+        self.settings.setValue("view/join_sentences", panel.join_box.isChecked())
         self.settings.setValue("sync/delay", panel.delay.value())
         self.settings.setValue("sync/auto_delay", panel.auto_delay.isChecked())
 
@@ -543,6 +546,10 @@ class PlayerWindow(QMainWindow):
             self.caption_panel.insert_cue(index, self.track.cues[index])
         self.refresh_subtitle()
 
+    def set_join_sentences(self, enabled):
+        # Saved with the other settings on start/close; saving here would run mid-load_settings.
+        self.track.join_sentences = enabled
+
     def refresh_subtitle(self, position=None):
         position = self.player.position() if position is None else position
         index = self.track.active_index(position)
@@ -550,7 +557,7 @@ class PlayerWindow(QMainWindow):
             self.video_view.set_subtitle("")
         else:
             cue = self.track.cues[index]
-            self.video_view.set_subtitle(cue.text, speaker_color(cue.speaker), interim=not cue.final)
+            self.video_view.set_subtitle(cue.display, speaker_color(cue.speaker), interim=not cue.final)
         self.caption_panel.set_active(index, self.track.cues)
 
     # ---- sync -------------------------------------------------------------
