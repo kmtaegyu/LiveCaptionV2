@@ -116,3 +116,10 @@ python review_captions.py logs/captions/*.jsonl --out review.md
 
 사전 단어와 자모 한두 개만 다른 말("이성락" ↔ "위성락")을 의심 목록으로 뽑고, 사전이 고친 단어와 그대로 인식된 사전 단어의 횟수를 보여 줍니다.
 음성을 듣지 않고 글자만 비교하므로, 실제 오인식으로 확인한 것만 사전의 `variants`에 넣습니다.
+
+여러 시간 모을 때는 플레이어 없이 `collect_captions.py`를 씁니다. 방송이 끝나거나 주소가 만료되거나 10분 동안
+자막이 없으면 목록의 다음 주소로 다시 시작합니다(GPU 서버로 가는 SSH 터널이 끊기면 복구하지 못하고 계속 재시도만 합니다).
+
+```bash
+python collect_captions.py https://www.youtube.com/@ytnnews24/live --server 127.0.0.1:8000 --topic politics --hours 8
+```
