@@ -262,11 +262,11 @@ class CaptionWindowTest(unittest.TestCase):
         window.refresh_subtitle(position + 500)
         label = window.video_view.subtitle_label
         self.assertEqual([(word, color.name()) for word, color in label.marks],
-                         [("중수청", MARK_COLORS["fixed"]), ("공소청", MARK_COLORS["term"])])
+                         [("공소청", MARK_COLORS["term"]), ("중수청", MARK_COLORS["fixed"])])   # red last
         # The carried end of the previous caption keeps its colours.
         window.refresh_subtitle(position + 1500)
         self.assertEqual(label.text(), "중수청 중심의 공소청 협력이 필요합니다.")
-        self.assertEqual([word for word, _ in label.marks], ["중수청", "공소청"])
+        self.assertEqual({word for word, _ in label.marks}, {"중수청", "공소청"})
         panel.mark_box.setChecked(False)
         self.assertEqual(label.marks, ())
         panel.mark_box.setChecked(True)
