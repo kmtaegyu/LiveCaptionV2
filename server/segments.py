@@ -131,6 +131,9 @@ class SegmentTracker:
         marks = dictionary_marks(raw, event["text"], self.replacements, self.pattern, self.terms_pattern)
         if marks:
             event["marks"] = marks
+        raw = " ".join(raw.split())
+        if raw != event["text"]:
+            event["raw"] = raw          # what the model wrote, before the dictionary (for review logs)
         return event
 
     def update(self, segments) -> list[dict]:

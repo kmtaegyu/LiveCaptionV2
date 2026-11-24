@@ -143,7 +143,9 @@ class VideoView(QGraphicsView):
         fill = QColor(color)
         fill.setAlphaF(0.72 if interim else 1.0)
         self.subtitle_label.fill = fill
-        self.subtitle_label.marks = tuple((word, QColor(MARK_COLORS[kind])) for word, kind in marks
+        # Rewritten words are painted last, so "APEC" stays red inside a blue "APEC 정상회의".
+        ordered = sorted(marks, key=lambda mark: mark[1] == "fixed")
+        self.subtitle_label.marks = tuple((word, QColor(MARK_COLORS[kind])) for word, kind in ordered
                                           if kind in MARK_COLORS)
         self.subtitle_label.setText(text)
         self.subtitle_label.update()

@@ -49,6 +49,9 @@ CHUNK_BYTES = SAMPLE_RATE // 10 * 2          # 100 ms of s16le mono
 MODEL_READY_TIMEOUT = 300                    # first load downloads the model
 TIMELINE_TIMEOUT = 60
 KEPT_SESSIONS = 50
+# Every final caption is appended to <dir>/<date>_<time>_<session>.jsonl as it comes out, so an
+# hour of captions survives a restart and can be reviewed later (review_captions.py). "" = off.
+CAPTION_LOG_DIR = os.environ.get("LIVECAPTION_CAPTION_LOG_DIR", str(APP_DIR / "logs" / "captions"))
 MAX_KEYWORD_CHARS = 300                      # typed hotwords; build_hotwords caps the count anyway
 ALLOWED_SCHEMES = {"http", "https", "rtmp", "rtmps", "srt", "rtp"}
 
@@ -84,6 +87,21 @@ class Session:
         self.epoch = None
         self.pts0 = None
         self.state = "created"
+        self.log_path = None
+
+    def log(self, record: dict):
+        """Append one line to this session's caption log; logging never breaks captioning."""
+        if not CAPTION_LOG_DIR:
+            return
+        try:
+            if self.log_path is None:
+                folder = Path(CAPTION_LOG_DIR)
+                folder.mkdir(parents=True, exist_ok=True)
+                self.log_path = folder / f"{time.strftime('%Y%m%d_%H%M%S', time.localtime(self.started))}_{self.id}.jsonl"
+            with open(self.log_path, "a", encoding="utf-8") as handle:
+                handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+        except OSError as error:
+            logger.warning("[%s] cannot write caption log: %s", self.id, error)
 
     def export(self):
         return self.tracker.finals
@@ -119,6 +137,9 @@ async def relay_segments(whisper, ws: WebSocket, session: Session):
             for event in session.tracker.update(message["segments"]):
                 if "stream_end" in event:
                     event["lag"] = round(session.audio_seconds * 1000) - event["stream_end"]
+                if event.get("final"):
+                    session.log({key: event[key] for key in ("id", "stream_start", "stream_end", "text",
+                                                             "raw", "marks", "speaker") if event.get(key)})
                 await send(ws, event)
         elif message.get("message") == "DISCONNECT":
             return "음성 인식 서버가 연결을 끊었습니다."
@@ -188,9 +209,15 @@ async def run_session(ws: WebSocket, session: Session):
         topic_terms = session.topic.select_hotwords(media, session.keywords)
         logger.info("[%s] topic %s groups for this broadcast: %s", session.id, session.topic.name,
                     session.topic.matched_groups(" ".join(str(media.get(key) or "") for key in
-                                                          ("title", "author", "description", "tags"))))
+                                                          ("title", "author", "description", "tags"))
+                                                 + " " + session.keywords))
     session.hotwords = build_hotwords(media if USE_HOTWORDS else None, session.keywords, topic_terms)
     logger.info("[%s] hotwords: %s", session.id, session.hotwords)
+    session.log({"session": session.id, "url": session.url, "title": session.title,
+                 "started": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(session.started)),
+                 "topic": session.topic.name if session.topic else None, "hotwords": session.hotwords})
+    if session.log_path:
+        logger.info("[%s] caption log: %s", session.id, session.log_path)
     announce = {"type": "session", "id": session.id, "title": session.title, "live": media["live"],
                 "hotwords": session.hotwords,
                 "topic": session.topic.name if session.topic else None}

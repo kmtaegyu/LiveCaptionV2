@@ -103,3 +103,16 @@ curl localhost:8000/health        # {"ok":true,"whisper":"up",...}
 | 반복 3 + 핫워드(쉼표 구분, 끝에 마침표) | 44 | 1.60 / 2.86초 | 1.29 / 2.36초 | 39% (마침표 25개) |
 
 반복 횟수를 올려도 끊김은 거의 줄지 않고 지연만 늘어서 기본값 3을 유지합니다. 핫워드는 쉼표로 구분해 보냅니다.
+
+## 자막 기록과 검토
+
+`caption_api`는 확정 자막을 세션마다 `logs/captions/<날짜>_<시각>_<세션>.jsonl`에 바로 씁니다(`LIVECAPTION_CAPTION_LOG_DIR`로 위치 변경, 빈 값이면 끔).
+사전이 고친 자막은 모델이 쓴 원문(`raw`)도 함께 남습니다.
+
+```bash
+python review_captions.py                       # 가장 최근 기록
+python review_captions.py logs/captions/*.jsonl --out review.md
+```
+
+사전 단어와 자모 한두 개만 다른 말("이성락" ↔ "위성락")을 의심 목록으로 뽑고, 사전이 고친 단어와 그대로 인식된 사전 단어의 횟수를 보여 줍니다.
+음성을 듣지 않고 글자만 비교하므로, 실제 오인식으로 확인한 것만 사전의 `variants`에 넣습니다.
