@@ -48,6 +48,7 @@ CHUNK_BYTES = SAMPLE_RATE // 10 * 2          # 100 ms of s16le mono
 MODEL_READY_TIMEOUT = 300                    # first load downloads the model
 TIMELINE_TIMEOUT = 60
 KEPT_SESSIONS = 50
+MAX_KEYWORD_CHARS = 300                      # typed hotwords; build_hotwords caps the count anyway
 ALLOWED_SCHEMES = {"http", "https", "rtmp", "rtmps", "srt", "rtp"}
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -61,7 +62,8 @@ HLS_ROOT.mkdir(parents=True, exist_ok=True)
 
 
 class Session:
-    def __init__(self, url: str, language, diarization: bool, max_speakers: int, video: bool):
+    def __init__(self, url: str, language, diarization: bool, max_speakers: int, video: bool,
+                 keywords: str = ""):
         self.id = uuid.uuid4().hex[:12]
         self.url = url
         self.language = language
@@ -70,6 +72,7 @@ class Session:
         self.video = video
         self.hls_dir = HLS_ROOT / self.id if video else None
         self.title = url
+        self.keywords = keywords
         self.hotwords = None
         self.tracker = SegmentTracker()
         self.started = time.time()
@@ -174,8 +177,8 @@ async def run_session(ws: WebSocket, session: Session):
         await status(ws, session, "error", f"스트림 주소 확인 실패: {error}")
         return
     session.title = media["title"]
-    if USE_HOTWORDS:
-        session.hotwords = build_hotwords(media)
+    # Words typed in the player come first, then the broadcast's own (unless turned off).
+    session.hotwords = build_hotwords(media if USE_HOTWORDS else None, session.keywords)
     logger.info("[%s] hotwords: %s", session.id, session.hotwords)
     announce = {"type": "session", "id": session.id, "title": session.title, "live": media["live"],
                 "hotwords": session.hotwords}
@@ -293,8 +296,11 @@ async def captions(ws: WebSocket):
                     continue
                 # language None = Whisper auto-detect
                 language = message["language"] if "language" in message else "ko"
+                keywords = message.get("keywords")
+                keywords = keywords[:MAX_KEYWORD_CHARS] if isinstance(keywords, str) else ""
                 session = Session(url, language, bool(message.get("diarization")),
-                                  int(message.get("max_speakers") or 4), bool(message.get("video")))
+                                  int(message.get("max_speakers") or 4), bool(message.get("video")),
+                                  keywords)
                 keep(session)
                 runner = asyncio.create_task(run_session(ws, session))
             elif message.get("type") == "stop" and runner:

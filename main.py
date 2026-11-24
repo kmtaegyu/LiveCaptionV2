@@ -354,6 +354,9 @@ class PlayerWindow(QMainWindow):
         panel.language.setCurrentIndex(max(0, index))
         panel.diarization.setChecked(self.settings.value("ai/diarization", False, type=bool))
         panel.auto_start.setChecked(self.settings.value("ai/auto_start", True, type=bool))
+        keywords = self.settings.value("ai/keywords", "")
+        # An INI value with commas comes back as a list ("APEC, 머신러닝" -> ["APEC", "머신러닝"]).
+        panel.keywords.setText(", ".join(map(str, keywords)) if isinstance(keywords, list) else str(keywords))
         panel.font_size.setValue(self.settings.value("view/font_size", 22, type=int))
         panel.delay.setValue(self.settings.value("sync/delay", 2.0, type=float))
         panel.auto_delay.setChecked(self.settings.value("sync/auto_delay", True, type=bool))
@@ -364,6 +367,7 @@ class PlayerWindow(QMainWindow):
         self.settings.setValue("ai/language", panel.language.currentData() or "")
         self.settings.setValue("ai/diarization", panel.diarization.isChecked())
         self.settings.setValue("ai/auto_start", panel.auto_start.isChecked())
+        self.settings.setValue("ai/keywords", panel.keywords.text().strip())
         self.settings.setValue("view/font_size", panel.font_size.value())
         self.settings.setValue("sync/delay", panel.delay.value())
         self.settings.setValue("sync/auto_delay", panel.auto_delay.isChecked())
@@ -394,7 +398,8 @@ class PlayerWindow(QMainWindow):
         self.caption_pts0 = None
         self.reset_delay_samples()       # a new caption session numbers sentences from c1 again
         self.update_sync_mode()
-        self.remote.start(options["server"], url, options["language"], options["diarization"])
+        self.remote.start(options["server"], url, options["language"], options["diarization"],
+                          options["keywords"])
         return True
 
     def on_ai_status(self, state, detail):

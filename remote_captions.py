@@ -105,11 +105,14 @@ class RemoteCaptionClient(QObject):
         self.active = False
         self.state = "idle"
 
-    def start(self, server: str, url: str, language=None, diarization=False):
+    def start(self, server: str, url: str, language=None, diarization=False, keywords=""):
         self.stop(silent=True)
         self.server = server
         self.request = {"type": "start", "url": url, "language": language,
                         "diarization": diarization, "max_speakers": 4}
+        if keywords:
+            # Hotwords typed in the panel; the server merges them with the broadcast's own.
+            self.request["keywords"] = keywords
         self.session = None
         self._set_active(True)
         target = websocket_url(server)
@@ -176,8 +179,9 @@ class RemoteCaptionClient(QObject):
                 self.socket.close()
         elif kind == "session":
             self.session = {"id": str(event.get("id", "")), "title": event.get("title"),
-                            "live": event.get("live")}
+                            "live": event.get("live"), "hotwords": event.get("hotwords")}
             logger.info("Caption session %s: %s", self.session["id"], self.session["title"])
+            logger.info("Caption hotwords: %s", self.session["hotwords"])
             self.session_started.emit(self.session)
 
     def _emit_status(self, state, detail):

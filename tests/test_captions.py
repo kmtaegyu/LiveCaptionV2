@@ -238,6 +238,26 @@ class CaptionWindowTest(unittest.TestCase):
         self.assertFalse(window.caption_panel.ai_button.isChecked())
         self.assertIn("연결", window.caption_panel.ai_status.text())
 
+    def test_typed_keywords_go_into_the_start_request(self):
+        window = self.window
+        panel = window.caption_panel
+        panel.server.setText("127.0.0.1:1")
+        panel.keywords.setText(" APEC, 머신러닝 ")
+        self.assertTrue(window.start_ai_captions("https://www.youtube.com/live/x"))
+        self.assertEqual(window.remote.request["keywords"], "APEC, 머신러닝")
+        self.assertFalse(panel.keywords.isEnabled())
+        self.wait_for(lambda: not window.remote.active)
+        self.assertTrue(panel.keywords.isEnabled())
+        self.assertEqual(window.settings.value("ai/keywords"), "APEC, 머신러닝")
+        panel.keywords.clear()
+        self.assertTrue(window.start_ai_captions("https://www.youtube.com/live/x"))
+        self.assertNotIn("keywords", window.remote.request)
+        self.wait_for(lambda: not window.remote.active)
+        # A hand-edited INI line "keywords=APEC, 머신러닝" reads back as a list.
+        window.settings.setValue("ai/keywords", ["APEC", "머신러닝"])
+        window.load_settings()
+        self.assertEqual(panel.keywords.text(), "APEC, 머신러닝")
+
     def test_ai_captions_wait_for_the_resolved_video(self):
         window = self.window
         started = []

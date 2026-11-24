@@ -91,6 +91,14 @@ class CaptionPanel(QWidget):
         options.addWidget(self.language, 1)
         options.addWidget(self.diarization)
         layout.addLayout(options)
+        self.keywords = QLineEdit()
+        self.keywords.setPlaceholderText("핫워드 (쉼표로 구분, 예: APEC, 머신러닝)")
+        self.keywords.setAccessibleName("인식 핫워드")
+        self.keywords.setToolTip("방송에 나올 고유명사·약어를 넣으면 인식이 그 단어 쪽으로 기웁니다.\n"
+                                 "방송 제목·태그·채널명에서 뽑은 단어와 합쳐 서버로 보냅니다. "
+                                 "다음 시작부터 적용됩니다.")
+        self.keywords.setClearButtonEnabled(True)
+        layout.addWidget(self.keywords)
         self.auto_start = QCheckBox("YouTube 영상을 열면 자동으로 시작")
         self.auto_start.setChecked(True)
         layout.addWidget(self.auto_start)
@@ -114,12 +122,12 @@ class CaptionPanel(QWidget):
 
     def ai_options(self):
         return {"server": self.server.text().strip(), "language": self.language.currentData(),
-                "diarization": self.diarization.isChecked()}
+                "diarization": self.diarization.isChecked(), "keywords": self.keywords.text().strip()}
 
     def set_ai_active(self, active):
         self.ai_button.setChecked(active)
         self.ai_button.setText("AI 자막 중지" if active else "AI 자막 시작")
-        for widget in (self.server, self.language, self.diarization):
+        for widget in (self.server, self.language, self.diarization, self.keywords):
             widget.setEnabled(not active)
 
     def set_ai_status(self, state, detail):

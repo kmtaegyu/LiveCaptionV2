@@ -50,7 +50,8 @@ curl localhost:8000/health        # {"ok":true,"whisper":"up",...}
 
 플레이어 → 서버
 
-- `{"type":"start","url":"https://www.youtube.com/watch?v=...","language":"ko","diarization":false}`
+- `{"type":"start","url":"https://www.youtube.com/watch?v=...","language":"ko","diarization":false,"keywords":"APEC, 머신러닝"}`
+  `keywords`(선택)는 패널에 입력한 핫워드. 쉼표·공백으로 구분하며 방송 정보에서 뽑은 핫워드보다 앞에 둡니다.
   `language`가 `null`이면 자동 감지. URL은 http(s)·rtmp·srt·rtp만 허용합니다(서버 파일 접근 차단).
 - `{"type":"stop"}`
 
