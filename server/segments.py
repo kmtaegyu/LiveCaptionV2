@@ -79,6 +79,50 @@ def dictionary_marks(raw: str, text: str, replacements: dict, pattern, terms_pat
     return marks
 
 
+def prompt_echo_pattern(hotwords):
+    """Regex for the model reciting its hotword prompt: 3+ hotwords in a row, comma-separated.
+
+    Seen live (2026-11-24, a parliamentary hearing): over pauses Whisper wrote the prompt itself,
+    "KBS사장, 후보자, 인사청문준비단, 배경훈, 무제한 토론 종결." Speech does not come out as a
+    comma list of exactly those words, so such a run is removed from the caption.
+    """
+    words = sorted({word.strip() for word in hotwords or () if word and word.strip()}, key=len, reverse=True)
+    if len(words) < 3:
+        return None
+    one = "(?:" + "|".join(map(re.escape, words)) + ")"
+    return re.compile(rf"(?:{one}\s*,\s*){{2,}}(?:{one}[.,]?)?")
+
+
+# A word with a letter that is neither Hangul nor basic Latin (or U+FFFD, a broken byte):
+# decoding noise such as "납tem,ն" or "��iß이란".
+_FOREIGN_WORD = re.compile(r"\S*[^\W\d_a-zA-Z\u1100-\u11ff\u3130-\u318f\uac00-\ud7a3]\S*|\S*\ufffd\S*")
+_HANGUL_CHAR = re.compile(r"[\uac00-\ud7a3]")
+
+
+_LATIN_WORD = re.compile(r"(?<![A-Za-z])[a-z]{3,}(?![A-Za-z])")
+
+
+def strip_noise(text: str, echo=None) -> str:
+    """Remove a recited hotword prompt; "" for decoding noise or when little real text is left.
+
+    A caption with broken or foreign-script letters, or several lower-case foreign words
+    ("continu하면은 habits arg wine europe"), is a garbage decode: dropping one caption reads
+    better than showing it.
+    """
+    if _FOREIGN_WORD.search(text) or len(_LATIN_WORD.findall(text)) >= 3:
+        return ""
+    if echo is None:
+        return text
+    cleaned = echo.sub(" ", text)
+    if cleaned == text:
+        return text
+    cleaned = re.sub(r"\s+([,.])", r"\1", " ".join(cleaned.split())).strip(" ,")
+    # What is left around a recited prompt is usually more of the same list.
+    if cleaned.count(",") >= 3 or len(_HANGUL_CHAR.findall(cleaned)) < 4:
+        return ""
+    return cleaned
+
+
 def is_hallucination(text: str) -> bool:
     key = normalize(text)
     if not key:
@@ -104,6 +148,7 @@ class SegmentTracker:
         # SPELLINGS plus any topic dictionary's variant -> term rules; topic rules win on a tie.
         self.replacements = {**SPELLINGS, **(replacements or {})}
         self.pattern = replacement_pattern(self.replacements)
+        self.echo = None             # set_prompt(): the hotwords sent to the model, if any
         self.seen = set()
         self.seen_order = deque()
         self.counter = 0
@@ -111,6 +156,15 @@ class SegmentTracker:
         self.live_text = ""
         self.last_final = ""
         self.finals = []          # completed captions, for SRT/WebVTT export
+
+    def set_prompt(self, hotwords):
+        """Tell the tracker which hotwords the model was given, so a recited prompt is removed."""
+        if isinstance(hotwords, str):
+            hotwords = hotwords.rstrip(".").split(",")
+        self.echo = prompt_echo_pattern(hotwords)
+
+    def _clean(self, raw: str) -> str:
+        return strip_noise(clean_text(raw, self.replacements, self.pattern), self.echo)
 
     def _new_id(self):
         self.counter += 1
@@ -145,7 +199,7 @@ class SegmentTracker:
             if key in self.seen:
                 continue
             self._remember(key)
-            text = clean_text(segment.get("text") or "", self.replacements, self.pattern)
+            text = self._clean(segment.get("text") or "")
             if is_hallucination(text) or normalize(text) == normalize(self.last_final):
                 continue
             caption_id = self.live_id or self._new_id()
@@ -159,7 +213,7 @@ class SegmentTracker:
             events.append(self._marked(event, segment.get("text") or ""))
         last = segments[-1] if segments else None
         if last is not None and not last.get("completed"):
-            text = clean_text(last.get("text") or "", self.replacements, self.pattern)
+            text = self._clean(last.get("text") or "")
             if is_hallucination(text) or normalize(text) == normalize(self.last_final):
                 if self.live_id is not None and not events:
                     self._drop_live(events)

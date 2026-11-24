@@ -50,7 +50,7 @@ def record(url: str, out: str, seconds: int):
 
 
 async def run(pcm: str, whisper_url: str, same_output: int, language: str, out: str, tail: float,
-              hotwords: str | None = None, topic: str | None = None):
+              hotwords: str | None = None, topic: str | None = None, echo_filter: bool = True):
     import websockets
     from topics import load_topic
     audio = Path(pcm).read_bytes()
@@ -68,6 +68,8 @@ async def run(pcm: str, whisper_url: str, same_output: int, language: str, out: 
                "send_last_n_segments": 10, "no_speech_thresh": 0.45, "same_output_threshold": same_output}
     if hotwords:
         options["hotwords"] = hotwords
+    if echo_filter:
+        tracker.set_prompt(hotwords)
     async with websockets.connect(whisper_url, max_size=None, open_timeout=30) as ws:
         await ws.send(json.dumps(options))
         ready = json.loads(await ws.recv())
@@ -162,6 +164,8 @@ def main():
     go.add_argument("--tail", type=float, default=8.0, help="seconds to wait for the last captions")
     go.add_argument("--hotwords", help="space-separated hotwords, as caption_api would send")
     go.add_argument("--topic", help="topic dictionary (dictionaries/<topic>.json)")
+    go.add_argument("--no-echo-filter", action="store_true",
+                    help="keep recited hotword prompts in the result (to count them)")
     go.add_argument("--out", required=True)
     ref = sub.add_parser("reference")
     ref.add_argument("pcm")
@@ -177,7 +181,7 @@ def main():
         reference(args.pcm, args.out, args.model, args.language)
     elif args.command == "run":
         asyncio.run(run(args.pcm, args.whisper, args.same_output, args.language, args.out, args.tail,
-                        args.hotwords, args.topic))
+                        args.hotwords, args.topic, not args.no_echo_filter))
     else:
         compare(args.results)
 

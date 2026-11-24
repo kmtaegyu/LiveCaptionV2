@@ -60,6 +60,31 @@ class SegmentTrackerTests(unittest.TestCase):
     def test_clean_text_collapses_repeats(self):
         self.assertEqual(clean_text("네  네 네 네 네 알겠습니다"), "네 네 알겠습니다")
 
+    def test_recited_hotword_prompt_is_removed(self):
+        # Seen live on 2026-11-24: over pauses the model wrote its hotword list instead of speech.
+        tracker = SegmentTracker()
+        tracker.set_prompt("이태현, KBS사장, 후보자, 인사청문회, 국회, 과방위, 이형일, 필리버스터, "
+                           "인사청문준비단, 배경훈, 무제한 토론, 토론 종결.")
+        gone = tracker.update([seg(0, 2, "KBS사장, 후보자, 인사청문준비단, 배경훈, 무제한 토론 종결.", True)])
+        self.assertEqual(gone, [])
+        self.assertEqual(tracker.update([seg(2, 3, "이태현, KBS사장, 후보자가", False)]), [])
+        kept = tracker.update([seg(3, 6, "이형일, 필리버스터, 인사청문회, 국회, 국민들에게 부응하는 "
+                                         "그런 대응을 보겠습니다.", True)])
+        self.assertEqual(kept[0]["text"], "국민들에게 부응하는 그런 대응을 보겠습니다.")
+        # Ordinary speech that mentions the same words is untouched.
+        spoken = tracker.update([seg(7, 9, "국회 인사청문회에서 이태현 후보자는 과방위 질의에", True)])
+        self.assertEqual(spoken[0]["text"], "국회 인사청문회에서 이태현 후보자는 과방위 질의에")
+        self.assertEqual(len(tracker.finals), 2)
+
+    def test_garbage_decodes_are_dropped(self):
+        tracker = SegmentTracker()
+        for text in ("그런데ldarbak�연을 알아보자는 continu하면은 habits arg wine europe",
+                     "�iß이란 게 확인이 되잖아요.", "중단 Jahre, 민주당의 납tem,ն, 기생미"):
+            self.assertEqual(tracker.update([seg(0, 1, text, True)]), [], text)
+        for text in ("BBC처럼 공영방송을 진행합니다.", "NHK와 K-컬처, AI 반도체 newsdesk 보도",
+                     "1조 4천억 원, 3.5% 증가했습니다."):
+            self.assertEqual(tracker.update([seg(0, 1, text, True)])[0]["text"], text)
+
     def test_clean_text_spells_acronyms_like_broadcast_captions(self):
         from segments import SPELLINGS
         self.assertTrue(10 <= len(SPELLINGS) <= 20)

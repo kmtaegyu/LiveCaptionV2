@@ -38,8 +38,11 @@ WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "large-v3-turbo")
 # How many identical passes finalise an in-progress sentence. Each pass is one decode plus
 # 0.1 s, so this sets most of the delay between the end of speech and the final caption.
 SAME_OUTPUT_THRESHOLD = int(os.environ.get("WHISPER_SAME_OUTPUT", "3"))
-# Hotwords from the broadcast's title, tags and channel (hotwords.py); 0 turns them off.
-USE_HOTWORDS = os.environ.get("LIVECAPTION_HOTWORDS", "1") != "0"
+# Automatic hotwords (the broadcast's title/tags/channel and the topic dictionary's terms) are
+# OFF by default: on a live hearing the model recited the 20-word list over pauses instead of
+# transcribing ("KBS사장, 후보자, 인사청문준비단, 배경훈, 무제한 토론 종결."). 1 turns them on.
+# Words the presenter types are always sent; the topic dictionary still fixes and marks captions.
+USE_HOTWORDS = os.environ.get("LIVECAPTION_HOTWORDS", "0") == "1"
 API_TOKEN = os.environ.get("LIVECAPTION_TOKEN", "")
 HF_TOKEN = os.environ.get("HF_TOKEN")
 APP_DIR = Path(__file__).resolve().parent
@@ -211,7 +214,9 @@ async def run_session(ws: WebSocket, session: Session):
                     session.topic.matched_groups(" ".join(str(media.get(key) or "") for key in
                                                           ("title", "author", "description", "tags"))
                                                  + " " + session.keywords))
-    session.hotwords = build_hotwords(media if USE_HOTWORDS else None, session.keywords, topic_terms)
+    session.hotwords = build_hotwords(media if USE_HOTWORDS else None, session.keywords,
+                                      topic_terms if USE_HOTWORDS else None)
+    session.tracker.set_prompt(session.hotwords)
     logger.info("[%s] hotwords: %s", session.id, session.hotwords)
     session.log({"session": session.id, "url": session.url, "title": session.title,
                  "started": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(session.started)),
