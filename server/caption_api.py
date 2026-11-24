@@ -279,6 +279,10 @@ async def run_session(ws: WebSocket, session: Session):
                 await status(ws, session, "error", finished.result() or "인식이 중단되었습니다.")
     except (OSError, websockets.InvalidHandshake) as error:
         await status(ws, session, "error", f"음성 인식 서버({WHISPER_URL})에 연결할 수 없습니다: {error}")
+    except websockets.ConnectionClosed as error:
+        # The link to WhisperLive dropped mid-session (e.g. the SSH tunnel was restarted). Without
+        # this the session died silently and the player kept waiting for captions.
+        await status(ws, session, "error", f"음성 인식 서버와의 연결이 끊겼습니다: {error}")
     except asyncio.TimeoutError:
         await status(ws, session, "error", "음성 인식 모델 준비 시간이 초과되었습니다.")
     finally:
