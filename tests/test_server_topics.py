@@ -65,6 +65,22 @@ class TopicTests(unittest.TestCase):
         self.assertEqual(words, ["APEC", "제50회", "국무회의", "예산안", "KTV", "헌법재판소", "트럼프"])
         self.assertEqual(build_hotwords(None, None, ["헌법재판소"]), "헌법재판소.")
 
+    def test_topic_terms_keep_room_next_to_a_tag_heavy_broadcast(self):
+        media = {"title": "국무회의", "tags": [f"태그{i}번째단어" for i in range(60)]}
+        terms = ["중수청", "공소청", "인사청문회", "필리버스터"]
+        words = build_hotwords(media, None, terms).rstrip(".").split(", ")
+        for term in terms:
+            self.assertIn(term, words)
+        self.assertEqual(words[0], "국무회의")
+        self.assertLess(words.index("태그0번째단어"), words.index("중수청"))
+
+    def test_politics_draft_fixes_misrecognitions_seen_in_caption_logs(self):
+        topic = load_topic("politics")
+        tracker = SegmentTracker(topic.replacements)
+        text = tracker.update([seg(0, 2, "중소청 중심의 검찰개혁, 강금식 후보자", True)])[0]["text"]
+        self.assertEqual(text, "중수청 중심의 검찰개혁, 강금실 후보자")
+        self.assertEqual(topic.hotwords[0], "중수청")
+
 
 if __name__ == "__main__":
     unittest.main()

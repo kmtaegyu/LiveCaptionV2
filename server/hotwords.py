@@ -17,6 +17,7 @@ from collections import Counter
 
 MAX_WORDS = 40
 MAX_TOKENS = 200              # under faster-whisper's 223-token hotword window
+TOPIC_RESERVE = 70            # tokens kept free for a chosen topic dictionary's terms
 DESCRIPTION_CHARS = 1000      # the first lines say what the stream is; the rest is boilerplate
 
 # Words every broadcast carries; they only cost prompt space.
@@ -114,16 +115,20 @@ def build_hotwords(media: dict | None, keywords=None, topic_terms=None,
     description = words_of(description_text, True, vocabulary)
     counts = Counter(word.lower() for word in title + description)
     repeated = [word for word in description if counts[word.lower()] >= 2]
-    sources = [keyword_list(keywords), title, words_of(media.get("tags")),
-               words_of(media.get("author")), list(topic_terms or []), repeated]
+    topic_terms = list(topic_terms or [])
+    # (words, tokens that must stay free afterwards): a broadcast with many tags would otherwise
+    # leave no room for the topic dictionary the presenter chose.
+    reserve = min(TOPIC_RESERVE, sum(estimate_tokens(word) + 1 for word in topic_terms))
+    sources = [(keyword_list(keywords), 0), (title, reserve), (words_of(media.get("tags")), reserve),
+               (words_of(media.get("author")), reserve), (topic_terms, 0), (repeated, 0)]
     chosen, seen, budget = [], set(), max_tokens
-    for words in sources:
+    for words, keep_free in sources:
         for word in words:
             key = word.lower()
             if key in seen:
                 continue
             cost = estimate_tokens(word) + 1          # + the comma
-            if cost > budget:
+            if cost > budget - keep_free:
                 continue
             seen.add(key)
             chosen.append(word)
