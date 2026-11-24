@@ -58,6 +58,27 @@ def clean_text(text: str, replacements: dict | None = None, pattern=None) -> str
     return _REPEAT.sub(r"\1 \1", text)
 
 
+def dictionary_marks(raw: str, text: str, replacements: dict, pattern, terms_pattern) -> list:
+    """Dictionary words in ``text`` for the player to colour: [[word, kind], ...].
+
+    kind "fixed" = a rule rewrote the recognised text into this word (``raw`` held a variant);
+    kind "term"  = a topic dictionary term that was recognised as it is.
+    """
+    marks, seen = [], set()
+    if pattern is not None:
+        for match in pattern.finditer(" ".join(raw.split())):
+            word = replacements[match.group()]
+            if word not in seen and word in text:
+                seen.add(word)
+                marks.append([word, "fixed"])
+    if terms_pattern is not None:
+        for match in terms_pattern.finditer(text):
+            if match.group() not in seen:
+                seen.add(match.group())
+                marks.append([match.group(), "term"])
+    return marks
+
+
 def is_hallucination(text: str) -> bool:
     key = normalize(text)
     if not key:
@@ -77,7 +98,9 @@ def to_ms(value) -> int:
 class SegmentTracker:
     SEEN_LIMIT = 500
 
-    def __init__(self, replacements: dict | None = None):
+    def __init__(self, replacements: dict | None = None, terms=()):
+        # Topic dictionary terms, reported in each caption's "marks" when they come up.
+        self.terms_pattern = replacement_pattern({term: term for term in terms})
         # SPELLINGS plus any topic dictionary's variant -> term rules; topic rules win on a tie.
         self.replacements = {**SPELLINGS, **(replacements or {})}
         self.pattern = replacement_pattern(self.replacements)
@@ -104,6 +127,12 @@ class SegmentTracker:
             events.append({"type": "caption", "id": self.live_id, "remove": True})
         self.live_id, self.live_text = None, ""
 
+    def _marked(self, event, raw):
+        marks = dictionary_marks(raw, event["text"], self.replacements, self.pattern, self.terms_pattern)
+        if marks:
+            event["marks"] = marks
+        return event
+
     def update(self, segments) -> list[dict]:
         events = []
         for segment in segments:
@@ -124,7 +153,7 @@ class SegmentTracker:
                      "stream_start": to_ms(segment.get("start")),
                      "stream_end": to_ms(segment.get("end"))}
             self.finals.append(event)
-            events.append(event)
+            events.append(self._marked(event, segment.get("text") or ""))
         last = segments[-1] if segments else None
         if last is not None and not last.get("completed"):
             text = clean_text(last.get("text") or "", self.replacements, self.pattern)
@@ -135,10 +164,11 @@ class SegmentTracker:
                 if self.live_id is None:
                     self.live_id = self._new_id()
                 self.live_text = text
-                events.append({"type": "caption", "id": self.live_id, "text": text,
-                               "final": False, "speaker": last.get("speaker"),
-                               "stream_start": to_ms(last.get("start")),
-                               "stream_end": to_ms(last.get("end"))})
+                events.append(self._marked(
+                    {"type": "caption", "id": self.live_id, "text": text,
+                     "final": False, "speaker": last.get("speaker"),
+                     "stream_start": to_ms(last.get("start")),
+                     "stream_end": to_ms(last.get("end"))}, last.get("text") or ""))
         return events
 
 

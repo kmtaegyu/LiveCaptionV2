@@ -27,6 +27,7 @@ _NAME = re.compile(r"^[a-z0-9_-]{1,40}$")
 class Topic:
     name: str
     title: str = ""
+    terms: list[str] = field(default_factory=list)          # every entry's term
     hotwords: list[str] = field(default_factory=list)
     replacements: dict[str, str] = field(default_factory=dict)
 
@@ -37,6 +38,8 @@ def parse_topic(name: str, data: dict) -> Topic:
         term = str(entry.get("term") or "").strip() if isinstance(entry, dict) else ""
         if not term:
             continue
+        if term not in topic.terms:
+            topic.terms.append(term)
         if entry.get("hotword") and term not in topic.hotwords:
             topic.hotwords.append(term)
         for variant in entry.get("variants") or []:

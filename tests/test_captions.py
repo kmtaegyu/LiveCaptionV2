@@ -246,6 +246,31 @@ class CaptionWindowTest(unittest.TestCase):
         self.assertEqual(window.track.text_at(position + 4500), "방향을")
         panel.join_box.setChecked(True)
 
+    def test_dictionary_words_are_coloured_on_screen_and_listed(self):
+        from video_view import MARK_COLORS
+        window = self.window
+        panel = window.caption_panel
+        event = parse_server_event('{"type": "caption", "id": "c1", "text": "중수청 중심의 공소청", '
+                                   '"final": true, "marks": [["중수청", "fixed"], ["공소청", "term"], '
+                                   '["x", "other"], "bad"]}')
+        self.assertEqual(event["marks"], [("중수청", "fixed"), ("공소청", "term")])
+        position = window.player.position()
+        window.receive_caption({**event, "start": position, "end": position + 1000})
+        window.receive_caption({"type": "caption", "id": "c2", "text": "협력이 필요합니다.", "final": True,
+                                "start": position + 1000, "end": position + 2000})
+        self.assertIn("[고침 중수청, 사전 공소청]", panel.cue_list.item(0).text())
+        window.refresh_subtitle(position + 500)
+        label = window.video_view.subtitle_label
+        self.assertEqual([(word, color.name()) for word, color in label.marks],
+                         [("중수청", MARK_COLORS["fixed"]), ("공소청", MARK_COLORS["term"])])
+        # The carried end of the previous caption keeps its colours.
+        window.refresh_subtitle(position + 1500)
+        self.assertEqual(label.text(), "중수청 중심의 공소청 협력이 필요합니다.")
+        self.assertEqual([word for word, _ in label.marks], ["중수청", "공소청"])
+        panel.mark_box.setChecked(False)
+        self.assertEqual(label.marks, ())
+        panel.mark_box.setChecked(True)
+
     def test_ai_start_requires_a_stream_url(self):
         window = self.window
         self.assertFalse(window.start_ai_captions())

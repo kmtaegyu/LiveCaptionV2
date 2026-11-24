@@ -20,6 +20,7 @@ class Cue:
     speaker: str | None = None
     final: bool = True
     carry: str = ""          # unfinished end of the previous sentence, shown in front of ``text``
+    marks: tuple = ()        # dictionary words to colour: ((word, "fixed" | "term"), ...)
 
     @property
     def display(self) -> str:
@@ -145,7 +146,7 @@ class CaptionTrack:
         return index
 
     def push(self, text, position, start=None, end=None, duration=None, cue_id=None,
-             speaker=None, final=True):
+             speaker=None, final=True, marks=()):
         """Add a live cue stamped at ``position`` unless explicit times are given.
 
         A repeated ``cue_id`` replaces the text of that cue (interim results).
@@ -161,7 +162,7 @@ class CaptionTrack:
             new_start = old.start if start is None else start
             new_end = end if end is not None else max(old.end, position + duration)
             cue = Cue(new_start, max(new_end, new_start + 1), text, cue_id,
-                      speaker or old.speaker, final)
+                      speaker or old.speaker, final, marks=tuple(marks))
             self.cues[index] = self._with_carry(index, cue)
             return index, True, 0
         if start is None:
@@ -173,7 +174,8 @@ class CaptionTrack:
             del self.cues[0]
             trimmed = 1
         index = bisect_right(self.cues, start, key=lambda cue: cue.start)
-        self.cues.insert(index, self._with_carry(index, Cue(start, end, text, cue_id, speaker, final)))
+        self.cues.insert(index, self._with_carry(
+            index, Cue(start, end, text, cue_id, speaker, final, marks=tuple(marks))))
         return index, False, trimmed
 
     def _with_carry(self, index, cue):
@@ -185,4 +187,8 @@ class CaptionTrack:
                 or cue.start - previous.end > CARRY_GAP_MS or ends_sentence(previous.text)):
             return cue
         carry = carry_tail(previous.text)
-        return Cue(cue.start, cue.end, cue.text, cue.id, cue.speaker, cue.final, carry) if carry else cue
+        if not carry:
+            return cue
+        # The carried words keep their colours.
+        carried = tuple(mark for mark in previous.marks if mark[0] in carry and mark not in cue.marks)
+        return Cue(cue.start, cue.end, cue.text, cue.id, cue.speaker, cue.final, carry, cue.marks + carried)

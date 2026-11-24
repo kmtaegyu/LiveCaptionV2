@@ -293,6 +293,7 @@ class PlayerWindow(QMainWindow):
         panel.visibility_toggled.connect(self.video_view.set_subtitles_visible)
         panel.font_size_changed.connect(self.video_view.set_font_size)
         panel.join_box.toggled.connect(self.set_join_sentences)
+        panel.mark_box.toggled.connect(lambda _checked: self.refresh_subtitle())
         panel.open_srt_requested.connect(self.open_subtitle)
         panel.clear_requested.connect(self.clear_subtitles)
         panel.live_toggled.connect(self.set_live_captions)
@@ -362,6 +363,7 @@ class PlayerWindow(QMainWindow):
         panel.keywords.setText(", ".join(map(str, keywords)) if isinstance(keywords, list) else str(keywords))
         panel.font_size.setValue(self.settings.value("view/font_size", 22, type=int))
         panel.join_box.setChecked(self.settings.value("view/join_sentences", True, type=bool))
+        panel.mark_box.setChecked(self.settings.value("view/mark_dictionary", True, type=bool))
         panel.delay.setValue(self.settings.value("sync/delay", 2.0, type=float))
         panel.auto_delay.setChecked(self.settings.value("sync/auto_delay", True, type=bool))
 
@@ -375,6 +377,7 @@ class PlayerWindow(QMainWindow):
         self.settings.setValue("ai/topic", panel.topic.currentData() or "")
         self.settings.setValue("view/font_size", panel.font_size.value())
         self.settings.setValue("view/join_sentences", panel.join_box.isChecked())
+        self.settings.setValue("view/mark_dictionary", panel.mark_box.isChecked())
         self.settings.setValue("sync/delay", panel.delay.value())
         self.settings.setValue("sync/auto_delay", panel.auto_delay.isChecked())
 
@@ -538,7 +541,8 @@ class PlayerWindow(QMainWindow):
             start, end = placed, self.media_position(message.get("stream_end"))
         index, replaced, trimmed = self.track.push(
             message["text"], position, start=start, end=end, duration=message.get("duration"),
-            cue_id=message.get("id"), speaker=message.get("speaker"), final=message.get("final", True))
+            cue_id=message.get("id"), speaker=message.get("speaker"), final=message.get("final", True),
+            marks=message.get("marks") or ())
         cue = self.track.cues[index]
         if placed is not None:
             # Negative lead = the scene already played before its caption arrived.
@@ -571,7 +575,9 @@ class PlayerWindow(QMainWindow):
             self.video_view.set_subtitle("")
         else:
             cue = self.track.cues[index]
-            self.video_view.set_subtitle(cue.display, speaker_color(cue.speaker), interim=not cue.final)
+            marks = cue.marks if self.caption_panel.mark_box.isChecked() else ()
+            self.video_view.set_subtitle(cue.display, speaker_color(cue.speaker), interim=not cue.final,
+                                         marks=marks)
         self.caption_panel.set_active(index, self.track.cues)
 
     # ---- sync -------------------------------------------------------------

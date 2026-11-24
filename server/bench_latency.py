@@ -55,7 +55,8 @@ async def run(pcm: str, whisper_url: str, same_output: int, language: str, out: 
     from topics import load_topic
     audio = Path(pcm).read_bytes()
     dictionary = load_topic(topic)
-    tracker = SegmentTracker(dictionary.replacements if dictionary else None)
+    tracker = SegmentTracker(dictionary.replacements if dictionary else None,
+                             dictionary.terms if dictionary else ())
     if dictionary and dictionary.hotwords:
         # Same merge and limits as caption_api: given words first, then the topic's terms.
         from hotwords import build_hotwords

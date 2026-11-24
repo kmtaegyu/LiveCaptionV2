@@ -7,6 +7,8 @@ from PySide6.QtMultimediaWidgets import QGraphicsVideoItem
 from PySide6.QtWidgets import QGraphicsScene, QGraphicsView, QLabel, QFrame, QSizePolicy
 
 LINE_WIDTH_RATIO = 0.88      # a caption line never spans more than this share of the view
+# Dictionary words: rewritten by a rule / recognised as the dictionary spells it.
+MARK_COLORS = {"fixed": "#ff5a52", "term": "#4fb3ff"}
 MIN_FONT_SCALE = 0.75        # shrink at most this far before adding a third line
 
 
@@ -59,6 +61,7 @@ class OutlinedSubtitleLabel(QLabel):
 
     fill = QColor("white")
     lines = ()
+    marks = ()               # ((word, QColor), ...): dictionary words painted in their own colour
 
     def paintEvent(self, event):
         lines = self.lines or ([self.text()] if self.text() else [])
@@ -80,6 +83,17 @@ class OutlinedSubtitleLabel(QLabel):
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawPath(path)
         painter.fillPath(path, self.fill)
+        for index, line in enumerate(lines):
+            x = (self.width() - metrics.horizontalAdvance(line)) / 2
+            for word, color in self.marks:
+                start = line.find(word)
+                while start >= 0:
+                    span = QPainterPath()
+                    span.addText(x + metrics.horizontalAdvance(line[:start]),
+                                 top + index * step + metrics.ascent(), self.font(), word)
+                    span.setFillRule(Qt.FillRule.WindingFill)
+                    painter.fillPath(span, color)
+                    start = line.find(word, start + len(word))
 
 
 class VideoView(QGraphicsView):
@@ -120,12 +134,17 @@ class VideoView(QGraphicsView):
         self.placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.placeholder.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
 
-    def set_subtitle(self, text, color="white", interim=False):
-        """Show one caption; interim (still being recognized) text is dimmed."""
+    def set_subtitle(self, text, color="white", interim=False, marks=()):
+        """Show one caption; interim (still being recognized) text is dimmed.
+
+        ``marks`` are dictionary words in it: "fixed" ones are painted red, "term" ones blue.
+        """
         text = " ".join(text.split())
         fill = QColor(color)
         fill.setAlphaF(0.72 if interim else 1.0)
         self.subtitle_label.fill = fill
+        self.subtitle_label.marks = tuple((word, QColor(MARK_COLORS[kind])) for word, kind in marks
+                                          if kind in MARK_COLORS)
         self.subtitle_label.setText(text)
         self.subtitle_label.update()
         self.subtitle_item.setVisible(bool(text) and self.subtitles_visible)

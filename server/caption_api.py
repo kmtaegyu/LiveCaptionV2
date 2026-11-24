@@ -77,7 +77,8 @@ class Session:
         # Topic dictionary (dictionaries/<topic>.json): extra hotwords and spelling fixes.
         self.topic = load_topic(topic)
         self.hotwords = None
-        self.tracker = SegmentTracker(self.topic.replacements if self.topic else None)
+        self.tracker = SegmentTracker(self.topic.replacements if self.topic else None,
+                                      self.topic.terms if self.topic else ())
         self.started = time.time()
         self.audio_seconds = 0.0
         self.epoch = None

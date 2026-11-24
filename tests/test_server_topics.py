@@ -81,6 +81,21 @@ class TopicTests(unittest.TestCase):
         self.assertEqual(text, "중수청 중심의 검찰개혁, 강금실 후보자")
         self.assertEqual(topic.hotwords[0], "중수청")
 
+    def test_captions_report_dictionary_words_for_colouring(self):
+        topic = load_topic("politics")
+        tracker = SegmentTracker(topic.replacements, topic.terms)
+        interim = tracker.update([seg(0, 1, "에이펙 뒤 중소청과 공소청", False)])[0]
+        self.assertEqual(interim["text"], "APEC 뒤 중수청과 공소청")
+        # Rewritten words are "fixed"; a dictionary term recognised as it is is a "term".
+        self.assertEqual(interim["marks"], [["APEC", "fixed"], ["중수청", "fixed"], ["공소청", "term"]])
+        final = tracker.update([seg(0, 2, "중수청과 공소청 그리고 인사청문회", True)])[0]
+        self.assertEqual(final["marks"], [["중수청", "term"], ["공소청", "term"], ["인사청문회", "term"]])
+        plain = tracker.update([seg(3, 4, "날씨가 맑겠습니다", True)])[0]
+        self.assertNotIn("marks", plain)
+        # Without a topic only the common spellings are reported.
+        event = SegmentTracker().update([seg(0, 1, "에이펙과 중수청", True)])[0]
+        self.assertEqual(event["marks"], [["APEC", "fixed"]])
+
 
 if __name__ == "__main__":
     unittest.main()

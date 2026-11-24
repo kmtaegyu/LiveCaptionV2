@@ -64,6 +64,7 @@ curl localhost:8000/health        # {"ok":true,"whisper":"up",...}
   `hotwords`는 이 세션에 WhisperLive로 보낸 핫워드(없으면 `null`)
 - `{"type":"timeline","pts0":초}`: 서버가 받은 첫 음성의 방송 시각. 자막의 방송 시각 = `pts0 + stream_start/1000`
 - `{"type":"caption","id":"c3","text":"...","final":false,"speaker":null,"stream_start":ms,"stream_end":ms,"lag":ms}`
+  사전 단어가 들어 있으면 `"marks":[["중수청","fixed"],["공소청","term"]]`가 붙습니다(`fixed` = 사전이 고쳐 쓴 단어, `term` = 주제 사전 단어가 그대로 인식됨). 플레이어는 각각 빨강·파랑으로 칠합니다.
   같은 id는 그 자막을 교체하고, `final`이면 확정입니다. `{"id":"c3","remove":true}`는 철회입니다.
 
 확정 자막은 `GET /sessions/{id}.srt`, `GET /sessions/{id}.vtt`로 받습니다(서버 재시작 전까지, 최근 50개 세션).

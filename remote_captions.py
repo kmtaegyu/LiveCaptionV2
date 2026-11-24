@@ -67,6 +67,12 @@ def parse_server_event(raw: str) -> dict | None:
                  "final": bool(data.get("final", True)),
                  "speaker": speaker_name(data.get("speaker")) if isinstance(data.get("speaker"), str) else None,
                  "lag": _number(data.get("lag"))}
+        # Dictionary words to colour: [[word, "fixed" | "term"], ...]
+        marks = [(mark[0], mark[1]) for mark in data.get("marks") or []
+                 if isinstance(mark, list) and len(mark) == 2 and isinstance(mark[0], str)
+                 and mark[0] and mark[1] in ("fixed", "term")]
+        if marks:
+            event["marks"] = marks
         # Milliseconds into the server's audio; placed on the video via the timeline event.
         start, end = _number(data.get("stream_start")), _number(data.get("stream_end"))
         if start is not None and start >= 0:

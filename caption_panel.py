@@ -23,7 +23,11 @@ def cue_label(cue):
     stamp = f"{seconds // 3600:02}:{seconds // 60 % 60:02}:{seconds % 60:02}"
     speaker = f"{cue.speaker} · " if getattr(cue, "speaker", None) else ""
     interim = " …" if not getattr(cue, "final", True) else ""
-    return f"{stamp}   {speaker}{' '.join(cue.text.split())}{interim}"
+    marks = getattr(cue, "marks", ())
+    found = ""
+    if marks:
+        found = "   [" + ", ".join(("고침 " if kind == "fixed" else "사전 ") + word for word, kind in marks) + "]"
+    return f"{stamp}   {speaker}{' '.join(cue.text.split())}{interim}{found}"
 
 
 class CaptionPanel(QWidget):
@@ -109,6 +113,10 @@ class CaptionPanel(QWidget):
                               "알려진 오인식을 바로잡습니다. 고르면 바로 적용됩니다.")
         self.topic.currentIndexChanged.connect(lambda _index: self.recognition_changed.emit())
         layout.addWidget(self.topic)
+        self.mark_box = QCheckBox("사전 단어 색 표시 (빨강: 고침, 파랑: 사전 단어)")
+        self.mark_box.setChecked(True)
+        self.mark_box.setToolTip("사전이 고쳐 쓴 단어는 빨강, 사전에 있는 단어가 그대로 인식되면 파랑으로 보여 줍니다.")
+        layout.addWidget(self.mark_box)
         self.auto_start = QCheckBox("YouTube 영상을 열면 자동으로 시작")
         self.auto_start.setChecked(True)
         layout.addWidget(self.auto_start)
