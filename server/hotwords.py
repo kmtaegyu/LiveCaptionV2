@@ -101,7 +101,12 @@ def keyword_list(text) -> list[str]:
 
 def build_hotwords(media: dict | None, keywords=None, topic_terms=None,
                    max_words: int = MAX_WORDS, max_tokens: int = MAX_TOKENS) -> str | None:
-    """One space-separated hotword string for WhisperLive, or None when nothing is left."""
+    """One hotword string for WhisperLive ("A, B, C."), or None when nothing is left.
+
+    Commas and the final period matter: Whisper copies the prompt's style, and a bare
+    space-separated list made it drop punctuation (3-minute KTV recording: 13 periods without
+    hotwords, 3 with a bare list, 25 with this form).
+    """
     media = media or {}
     description_text = str(media.get("description") or "")[:DESCRIPTION_CHARS]
     vocabulary = set(raw_words([media.get("title"), media.get("tags"), description_text]))
@@ -117,12 +122,12 @@ def build_hotwords(media: dict | None, keywords=None, topic_terms=None,
             key = word.lower()
             if key in seen:
                 continue
-            cost = estimate_tokens(word)
+            cost = estimate_tokens(word) + 1          # + the comma
             if cost > budget:
                 continue
             seen.add(key)
             chosen.append(word)
             budget -= cost
             if len(chosen) >= max_words:
-                return " ".join(chosen)
-    return " ".join(chosen) or None
+                return ", ".join(chosen) + "."
+    return ", ".join(chosen) + "." if chosen else None

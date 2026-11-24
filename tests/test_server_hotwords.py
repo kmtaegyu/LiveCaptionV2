@@ -14,7 +14,7 @@ KTV = {"title": "(26.11.24. KTV LIVE) 이재명 대통령 제50회 국무회의"
 
 class HotwordTests(unittest.TestCase):
     def test_title_tags_and_channel_in_priority_order(self):
-        words = build_hotwords(KTV).split()
+        words = build_hotwords(KTV).rstrip('.').split(', ')
         self.assertEqual(words[:5], ["KTV", "이재명", "대통령", "제50회", "국무회의"])
         self.assertIn("예산안", words)
         self.assertIn("국민방송", words)
@@ -24,7 +24,7 @@ class HotwordTests(unittest.TestCase):
         self.assertEqual(words.count("국무회의"), 1)
 
     def test_typed_keywords_come_first(self):
-        words = build_hotwords(KTV, "APEC, 머신러닝\n엔비디아").split()
+        words = build_hotwords(KTV, "APEC, 머신러닝\n엔비디아").rstrip('.').split(', ')
         self.assertEqual(words[:3], ["APEC", "머신러닝", "엔비디아"])
         self.assertEqual(keyword_list(["a", "GPT-5", "  ", "딥시크"]), ["GPT-5", "딥시크"])
 
@@ -32,7 +32,7 @@ class HotwordTests(unittest.TestCase):
         media = {"title": "호르무즈 유조선 '쾅'…이란도 움직였다",
                  "description": "이란은 지하 기지를 공개했습니다. 트럼프 대통령은 이란에 경고했습니다. "
                                 "트럼프의 경고가 이어졌다."}
-        words = build_hotwords(media).split()
+        words = build_hotwords(media).rstrip('.').split(', ')
         self.assertIn("이란", words)           # 이란도 / 이란은 / 이란에 -> one word
         self.assertIn("트럼프", words)         # said twice in the description
         self.assertNotIn("움직였다", words)
@@ -40,14 +40,14 @@ class HotwordTests(unittest.TestCase):
         self.assertNotIn("공개했습니다", words)
 
     def test_particle_is_kept_when_the_stem_never_stands_alone(self):
-        words = build_hotwords({"title": "국무회의 전문가 토론"}).split()
+        words = build_hotwords({"title": "국무회의 전문가 토론"}).rstrip('.').split(', ')
         self.assertEqual(words, ["국무회의", "전문가", "토론"])
 
     def test_length_is_bounded(self):
         many = {"tags": [f"단어{i}번째" for i in range(200)]}
-        words = build_hotwords(many).split()
+        words = build_hotwords(many).rstrip('.').split(', ')
         self.assertLessEqual(len(words), 40)
-        self.assertLessEqual(sum(map(estimate_tokens, words)), MAX_TOKENS)
+        self.assertLessEqual(sum(map(estimate_tokens, words)) + len(words), MAX_TOKENS)
 
     def test_nothing_to_say(self):
         self.assertIsNone(build_hotwords({"title": "https://example.com/live.m3u8"}))

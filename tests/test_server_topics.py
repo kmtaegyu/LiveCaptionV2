@@ -61,9 +61,9 @@ class TopicTests(unittest.TestCase):
     def test_hotword_priority_typed_then_broadcast_then_topic(self):
         media = {"title": "제50회 국무회의", "tags": ["예산안"], "author": "KTV",
                  "description": "트럼프 트럼프"}
-        words = build_hotwords(media, "APEC", ["국무회의", "헌법재판소"]).split()
+        words = build_hotwords(media, "APEC", ["국무회의", "헌법재판소"]).rstrip('.').split(', ')
         self.assertEqual(words, ["APEC", "제50회", "국무회의", "예산안", "KTV", "헌법재판소", "트럼프"])
-        self.assertEqual(build_hotwords(None, None, ["헌법재판소"]), "헌법재판소")
+        self.assertEqual(build_hotwords(None, None, ["헌법재판소"]), "헌법재판소.")
 
 
 if __name__ == "__main__":
