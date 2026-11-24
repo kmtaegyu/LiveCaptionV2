@@ -105,11 +105,11 @@ _LATIN_WORD = re.compile(r"(?<![A-Za-z])[a-z]{3,}(?![A-Za-z])")
 def strip_noise(text: str, echo=None) -> str:
     """Remove a recited hotword prompt; "" for decoding noise or when little real text is left.
 
-    A caption with broken or foreign-script letters, or several lower-case foreign words
+    A caption with broken or foreign-script letters, or two or more lower-case foreign words
     ("continu하면은 habits arg wine europe"), is a garbage decode: dropping one caption reads
     better than showing it.
     """
-    if _FOREIGN_WORD.search(text) or len(_LATIN_WORD.findall(text)) >= 3:
+    if _FOREIGN_WORD.search(text) or len(_LATIN_WORD.findall(text)) >= 2:
         return ""
     if echo is None:
         return text
