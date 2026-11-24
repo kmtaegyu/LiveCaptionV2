@@ -6,7 +6,8 @@
 caption_api writes the captions to logs/captions itself; this only keeps asking for them.
 When a session ends (the broadcast stopped, its stream address expired, an error) or goes
 quiet for --quiet-minutes, the next URL in the list is started after a short wait, round
-and round. It cannot bring back a dropped SSH tunnel to the GPU server: it then keeps
+and round. --rotate-minutes N also moves on after N minutes, so several channels are
+collected evenly. It cannot bring back a dropped SSH tunnel to the GPU server: it then keeps
 retrying and says so. Review the result with review_captions.py.
 """
 import argparse
@@ -68,9 +69,12 @@ async def collect(args):
         url = args.urls[index % len(args.urls)]
         index += 1
         say(f"시작: {url}")
+        # With several URLs and --rotate-minutes, each one gets a turn of that length.
+        rotate = args.rotate_minutes * 60 if args.rotate_minutes > 0 and len(args.urls) > 1 else 0
+        until = min(deadline, time.monotonic() + rotate) if rotate else deadline
         try:
             finals = await one_session(args.server, url, args.topic, args.keywords,
-                                       args.quiet_minutes * 60, deadline)
+                                       args.quiet_minutes * 60, until)
         except (OSError, websockets.WebSocketException, asyncio.TimeoutError) as error:
             say(f"자막 API({args.server})에 연결하지 못했습니다: {error}")
             finals = 0
@@ -79,7 +83,12 @@ async def collect(args):
         say(f"이번 세션 확정 자막 {finals}개, 누적 {total}개")
         if failures >= 3:
             say("세 번 연속 자막이 없습니다. SSH 터널(PS1)과 방송 주소를 확인하세요. 계속 다시 시도합니다.")
-        if time.monotonic() < deadline:
+        if time.monotonic() >= deadline:
+            break
+        if rotate and finals and time.monotonic() >= until:
+            say(f"{args.rotate_minutes:g}분이 지나 다음 채널로 넘어갑니다.")
+            await asyncio.sleep(3)
+        else:
             await asyncio.sleep(min(RETRY_SECONDS * max(1, failures), 300))
     say(f"수집 끝. 확정 자막 누적 {total}개. 기록은 logs/captions 에 있습니다.")
 
@@ -93,6 +102,8 @@ def main():
     parser.add_argument("--hours", type=float, default=8)
     parser.add_argument("--quiet-minutes", type=float, default=10,
                         help="restart a session that produced no caption for this long")
+    parser.add_argument("--rotate-minutes", type=float, default=0,
+                        help="with several URLs, move to the next one after this long (0 = only when one ends)")
     args = parser.parse_args()
     try:
         asyncio.run(collect(args))
