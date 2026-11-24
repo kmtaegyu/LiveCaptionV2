@@ -17,7 +17,7 @@ from collections import Counter
 
 MAX_WORDS = 40
 MAX_TOKENS = 200              # under faster-whisper's 223-token hotword window
-TOPIC_RESERVE = 70            # tokens kept free for a chosen topic dictionary's terms
+TOPIC_RESERVE = 90            # tokens kept free for a chosen topic dictionary's terms
 DESCRIPTION_CHARS = 1000      # the first lines say what the stream is; the rest is boilerplate
 
 # Words every broadcast carries; they only cost prompt space.

@@ -182,9 +182,14 @@ async def run_session(ws: WebSocket, session: Session):
         return
     session.title = media["title"]
     # Words typed in the player come first, then the broadcast's own (unless turned off),
-    # then the topic dictionary's terms.
-    session.hotwords = build_hotwords(media if USE_HOTWORDS else None, session.keywords,
-                                      session.topic.hotwords if session.topic else None)
+    # then the topic dictionary's terms picked for this broadcast (topics.select_hotwords).
+    topic_terms = None
+    if session.topic:
+        topic_terms = session.topic.select_hotwords(media, session.keywords)
+        logger.info("[%s] topic %s groups for this broadcast: %s", session.id, session.topic.name,
+                    session.topic.matched_groups(" ".join(str(media.get(key) or "") for key in
+                                                          ("title", "author", "description", "tags"))))
+    session.hotwords = build_hotwords(media if USE_HOTWORDS else None, session.keywords, topic_terms)
     logger.info("[%s] hotwords: %s", session.id, session.hotwords)
     announce = {"type": "session", "id": session.id, "title": session.title, "live": media["live"],
                 "hotwords": session.hotwords,

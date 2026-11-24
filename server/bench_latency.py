@@ -57,10 +57,10 @@ async def run(pcm: str, whisper_url: str, same_output: int, language: str, out: 
     dictionary = load_topic(topic)
     tracker = SegmentTracker(dictionary.replacements if dictionary else None,
                              dictionary.terms if dictionary else ())
-    if dictionary and dictionary.hotwords:
+    if dictionary:
         # Same merge and limits as caption_api: given words first, then the topic's terms.
         from hotwords import build_hotwords
-        hotwords = build_hotwords(None, hotwords, dictionary.hotwords)
+        hotwords = build_hotwords(None, hotwords, dictionary.select_hotwords(None, hotwords))
     first, finals, texts = {}, {}, {}
     fed = 0.0
     options = {"uid": f"bench-{time.time():.0f}", "language": language, "task": "transcribe",

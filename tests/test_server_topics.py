@@ -96,6 +96,50 @@ class TopicTests(unittest.TestCase):
         event = SegmentTracker().update([seg(0, 1, "에이펙과 중수청", True)])[0]
         self.assertEqual(event["marks"], [["APEC", "fixed"]])
 
+    GROUPED = {"topic": "grouped", "groups": {
+        "윤리·징계": {"triggers": ["윤리위", "징계"]},
+        "예산": {"triggers": ["예산안", "예결위"]}},
+        "entries": [
+            {"term": "중수청", "hotword": True},
+            {"term": "중앙윤리위원회", "group": "윤리·징계"},
+            {"term": "당원권 정지", "group": "윤리·징계"},
+            {"term": "제명", "group": "윤리·징계"},
+            {"term": "감액 심사", "group": "예산"},
+            {"term": "계수조정", "group": "예산"},
+            {"term": "홍길동", "category": "인물", "group": "내각", "role": "행정안전부 장관"},
+            {"term": "임꺽정", "category": "인물", "group": "내각", "role": "법무부 장관", "confirmed": False},
+        ]}
+
+    def test_hotwords_are_picked_for_the_broadcast(self):
+        topic = parse_topic("grouped", self.GROUPED)
+        # Nothing in the broadcast touches a group: only the always-on terms.
+        self.assertEqual(topic.select_hotwords({"title": "오늘의 날씨"}), ["중수청"])
+        # A trigger or a member term brings in the whole group, ahead of the always-on terms.
+        picked = topic.select_hotwords({"title": "국민의힘 윤리위, 징계 수위 논의"})
+        self.assertEqual(picked, ["중앙윤리위원회", "당원권 정지", "제명", "중수청"])
+        self.assertEqual(topic.select_hotwords({"tags": ["제명"]})[:3],
+                         ["중앙윤리위원회", "당원권 정지", "제명"])
+        # The group with more hits comes first; a role named in the text brings that person.
+        picked = topic.select_hotwords({"title": "예산안 처리 시한", "description":
+                                        "예결위 심사 중 윤리위 소집. 행정안전부 장관 출석"})
+        self.assertEqual(picked[0], "홍길동")
+        self.assertLess(picked.index("감액 심사"), picked.index("중앙윤리위원회"))
+        self.assertEqual(topic.select_hotwords(None, "징계")[0], "중앙윤리위원회")   # typed keyword
+
+    def test_unconfirmed_entries_are_ignored(self):
+        topic = parse_topic("grouped", self.GROUPED)
+        self.assertEqual(topic.pending, 1)
+        self.assertNotIn("임꺽정", topic.terms)
+        self.assertNotIn("임꺽정", topic.select_hotwords({"title": "법무부 장관 내각 개편"}))
+        self.assertIn("홍길동", topic.terms)
+
+    def test_selected_terms_fit_next_to_broadcast_words(self):
+        topic = parse_topic("grouped", self.GROUPED)
+        media = {"title": "윤리위 징계 논의", "tags": [f"태그{i}번째단어" for i in range(60)]}
+        words = build_hotwords(media, None, topic.select_hotwords(media)).rstrip(".").split(", ")
+        for term in ("중앙윤리위원회", "당원권 정지", "제명", "중수청"):
+            self.assertIn(term, words)
+
 
 if __name__ == "__main__":
     unittest.main()
