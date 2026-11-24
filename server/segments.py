@@ -24,9 +24,22 @@ def normalize(text: str) -> str:
     return _PUNCT.sub("", text).lower()
 
 
+# Spelling, not recognition: Whisper writes these acronyms the way they sound, while
+# broadcasters caption them in Latin letters. Topic-independent only; keys are 3+ Hangul
+# syllables so they never match inside an unrelated word, and longer keys apply first.
+SPELLINGS = {
+    "에이펙": "APEC", "지디피": "GDP", "아이엠에프": "IMF", "오이시디": "OECD", "에이아이": "AI",
+    "씨이오": "CEO", "이에스지": "ESG", "비티에스": "BTS", "에스엔에스": "SNS", "피씨알": "PCR",
+    "시시티비": "CCTV", "지피에스": "GPS", "오티티": "OTT", "엘엔지": "LNG", "에프티에이": "FTA",
+    "아이시티": "ICT", "엠오유": "MOU", "디엔에이": "DNA", "지세븐": "G7", "지트웬티": "G20",
+}
+_SPELLING = re.compile("|".join(sorted(map(re.escape, SPELLINGS), key=len, reverse=True)))
+
+
 def clean_text(text: str) -> str:
-    """Collapse whitespace and runs of 4+ repeated words to two."""
+    """Collapse whitespace and runs of 4+ repeated words to two; apply SPELLINGS."""
     text = " ".join(text.split())
+    text = _SPELLING.sub(lambda match: SPELLINGS[match.group()], text)
     return _REPEAT.sub(r"\1 \1", text)
 
 

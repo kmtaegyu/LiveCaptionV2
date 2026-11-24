@@ -59,6 +59,23 @@ class SegmentTrackerTests(unittest.TestCase):
 
     def test_clean_text_collapses_repeats(self):
         self.assertEqual(clean_text("네  네 네 네 네 알겠습니다"), "네 네 알겠습니다")
+
+    def test_clean_text_spells_acronyms_like_broadcast_captions(self):
+        from segments import SPELLINGS
+        self.assertTrue(10 <= len(SPELLINGS) <= 20)
+        self.assertTrue(all(len(key) >= 3 for key in SPELLINGS))
+        self.assertEqual(clean_text("에이펙 정상회의에서 지디피 성장률을"), "APEC 정상회의에서 GDP 성장률을")
+        self.assertEqual(clean_text("지트웬티와 지세븐, 아이엠에프가"), "G20와 G7, IMF가")
+        # Short look-alikes inside ordinary words stay as they are.
+        self.assertEqual(clean_text("아이티 지진 에이스 아이엠 오티"), "아이티 지진 에이스 아이엠 오티")
+
+    def test_tracker_applies_spellings_to_interim_and_final(self):
+        tracker = SegmentTracker()
+        interim = tracker.update([seg(0, 1, "에이펙 정상", False)])
+        self.assertEqual(interim[0]["text"], "APEC 정상")
+        final = tracker.update([seg(0, 2, "에이펙 정상회의", True)])
+        self.assertEqual(final[0]["text"], "APEC 정상회의")
+        self.assertEqual(tracker.finals[0]["text"], "APEC 정상회의")
         self.assertTrue(is_hallucination("  ...  "))
         self.assertFalse(is_hallucination("감사합니다 여러분 오늘 회의를 시작하겠습니다"))
 
