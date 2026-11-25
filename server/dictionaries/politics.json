@@ -311,7 +311,7 @@
   {"term": "이성윤", "category": "인물", "group": "인물·민주당", "hotword": false, "variants": [], "role": "민주당 최고위원"},
   {"term": "한민수", "category": "인물", "group": "인물·민주당", "hotword": false, "variants": [], "role": "민주당 최고위원"},
   {"term": "전용기", "category": "인물", "group": "인물·민주당", "hotword": false, "variants": [], "role": "민주당 최고위원"},
-  {"term": "정청래", "category": "인물", "group": "인물·민주당", "hotword": false, "variants": [], "role": "전 민주당 대표"},
+  {"term": "정청래", "category": "인물", "group": "인물·민주당", "hotword": false, "variants": ["정정래"], "role": "전 민주당 대표"},
   {"term": "양부남", "category": "인물", "group": "인물·민주당", "hotword": false, "variants": [], "role": "탄핵 추진단장"},
   {"term": "우원식", "category": "인물", "group": "인물·민주당", "hotword": false, "variants": [], "role": "전 국회의장"},
   {"term": "박균택", "category": "인물", "group": "인물·민주당", "hotword": false, "variants": [], "role": "민주당 의원"},
