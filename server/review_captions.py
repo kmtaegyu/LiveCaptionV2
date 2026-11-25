@@ -12,6 +12,7 @@ A person decides which are real misrecognitions; those go into the dictionary's
 import argparse
 import json
 import sys
+import time
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -21,6 +22,7 @@ from segments import SPELLINGS  # noqa: E402
 from topics import load_topic  # noqa: E402
 
 LOG_DIR = Path(__file__).resolve().parent / "logs" / "captions"
+YET, OK = "_check_yet.jsonl", "_check_ok.jsonl"      # log not reviewed yet / reviewed
 MIN_SYLLABLES = 3            # shorter terms are one sound away from too many ordinary words
 _INITIAL, _MEDIAL, _FINAL = 19, 21, 28
 
@@ -142,13 +144,33 @@ def review(paths, topic_name=None, extra_terms=()) -> str:
     return "\n".join(out)
 
 
+def mark_checked(paths, quiet_seconds: float = 120) -> list:
+    """Rename ..._check_yet.jsonl logs to ..._check_ok.jsonl; returns the new paths.
+
+    A log written to in the last ``quiet_seconds`` is left alone: its session may still be
+    running, and the server would start a second file under the old name.
+    """
+    done = []
+    for path in map(Path, paths):
+        if not path.name.endswith(YET) or time.time() - path.stat().st_mtime < quiet_seconds:
+            continue
+        target = path.with_name(path.name[:-len(YET)] + OK)
+        if not target.exists():
+            path.rename(target)
+            done.append(target)
+    return done
+
+
 def main():
     parser = argparse.ArgumentParser(description="Review LiveCaption caption logs")
     parser.add_argument("logs", nargs="*", help="caption log files (default: the newest one)")
     parser.add_argument("--topic", help="topic dictionary to compare with (default: the session's)")
     parser.add_argument("--out", help="write the review to this file instead of printing it")
+    parser.add_argument("--mark", action="store_true",
+                        help="rename the reviewed ..._check_yet.jsonl logs to ..._check_ok.jsonl")
     args = parser.parse_args()
-    paths = args.logs or sorted(LOG_DIR.glob("*.jsonl"))[-1:]
+    # Default: every log nobody has reviewed yet, or the newest log when all are reviewed.
+    paths = args.logs or sorted(LOG_DIR.glob("*_check_yet.jsonl")) or sorted(LOG_DIR.glob("*.jsonl"))[-1:]
     if not paths:
         sys.exit(f"No caption logs in {LOG_DIR}")
     text = review(paths, args.topic)
@@ -158,6 +180,8 @@ def main():
     else:
         sys.stdout.reconfigure(encoding="utf-8")
         print(text)
+    if args.mark:
+        print(f"marked {len(mark_checked(paths))} logs as checked")
 
 
 if __name__ == "__main__":

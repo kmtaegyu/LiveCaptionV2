@@ -44,6 +44,21 @@ class SuspectTests(unittest.TestCase):
         self.assertIn("- 중수청: 1회", report)
         self.assertNotIn("| 중소청 |", report)                         # already a known variant
 
+    def test_reviewed_logs_are_renamed_unless_still_being_written(self):
+        import os
+        import tempfile
+        import time
+        from review_captions import mark_checked
+        with tempfile.TemporaryDirectory() as folder:
+            old, live, other = (Path(folder) / name for name in
+                                ("a_check_yet.jsonl", "b_check_yet.jsonl", "c.jsonl"))
+            for path in (old, live, other):
+                path.write_text("{}", encoding="utf-8")
+            os.utime(old, (time.time() - 600, time.time() - 600))
+            done = mark_checked([old, live, other])
+            self.assertEqual([path.name for path in done], ["a_check_ok.jsonl"])
+            self.assertTrue(live.exists() and other.exists() and not old.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

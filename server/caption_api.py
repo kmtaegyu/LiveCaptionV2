@@ -56,8 +56,9 @@ CHUNK_BYTES = SAMPLE_RATE // 10 * 2          # 100 ms of s16le mono
 MODEL_READY_TIMEOUT = 300                    # first load downloads the model
 TIMELINE_TIMEOUT = 60
 KEPT_SESSIONS = 50
-# Every final caption is appended to <dir>/<date>_<time>_<session>.jsonl as it comes out, so an
-# hour of captions survives a restart and can be reviewed later (review_captions.py). "" = off.
+# Every final caption is appended to <dir>/<date>_<time>_<session>_check_yet.jsonl as it comes
+# out, so an hour of captions survives a restart and can be reviewed later (review_captions.py,
+# whose --mark renames a reviewed log to ..._check_ok.jsonl). "" = off.
 CAPTION_LOG_DIR = os.environ.get("LIVECAPTION_CAPTION_LOG_DIR", str(APP_DIR / "logs" / "captions"))
 MAX_KEYWORD_CHARS = 300                      # typed hotwords; build_hotwords caps the count anyway
 ALLOWED_SCHEMES = {"http", "https", "rtmp", "rtmps", "srt", "rtp"}
@@ -104,7 +105,7 @@ class Session:
             if self.log_path is None:
                 folder = Path(CAPTION_LOG_DIR)
                 folder.mkdir(parents=True, exist_ok=True)
-                self.log_path = folder / f"{time.strftime('%Y%m%d_%H%M%S', time.localtime(self.started))}_{self.id}.jsonl"
+                self.log_path = folder / f"{time.strftime('%Y%m%d_%H%M%S', time.localtime(self.started))}_{self.id}_check_yet.jsonl"
             with open(self.log_path, "a", encoding="utf-8") as handle:
                 handle.write(json.dumps(record, ensure_ascii=False) + "\n")
         except OSError as error:

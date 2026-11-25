@@ -111,11 +111,12 @@ curl localhost:8000/health        # {"ok":true,"whisper":"up",...}
 
 ## 자막 기록과 검토
 
-`caption_api`는 확정 자막을 세션마다 `logs/captions/<날짜>_<시각>_<세션>.jsonl`에 바로 씁니다(`LIVECAPTION_CAPTION_LOG_DIR`로 위치 변경, 빈 값이면 끔).
+`caption_api`는 확정 자막을 세션마다 `logs/captions/<날짜>_<시각>_<세션>_check_yet.jsonl`에 바로 씁니다(검토를 마치면 `_check_ok.jsonl`)(`LIVECAPTION_CAPTION_LOG_DIR`로 위치 변경, 빈 값이면 끔).
 사전이 고친 자막은 모델이 쓴 원문(`raw`)도 함께 남습니다.
 
 ```bash
-python review_captions.py                       # 가장 최근 기록
+python review_captions.py                       # 아직 검토 안 한 기록(_check_yet) 전부
+python review_captions.py --mark                # 검토 후 _check_ok로 이름 바꾸기(쓰는 중인 기록은 둠)
 python review_captions.py logs/captions/*.jsonl --out review.md
 ```
 
