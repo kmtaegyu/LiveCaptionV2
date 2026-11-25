@@ -140,6 +140,34 @@ class TopicTests(unittest.TestCase):
         for term in ("중앙윤리위원회", "당원권 정지", "제명", "중수청"):
             self.assertIn(term, words)
 
+    def test_guessed_variants_come_from_seen_jamo_swaps(self):
+        from generate_variants import generate
+        entries = [{"term": "조희대", "category": "인물", "variants": ["조의대"]},      # ㅎ -> ㅇ
+                   {"term": "탄핵안", "category": "제도", "variants": ["단핵안"]},      # ㅌ -> ㄷ
+                   {"term": "한미동맹", "category": "외교", "variants": []},
+                   {"term": "통일교", "category": "정당", "variants": []},
+                   {"term": "한덕수", "category": "인물", "variants": []}]
+        auto, seen = generate(entries, corpus="동일교 신자", blocked=["안미동맹"])
+        self.assertEqual(auto, {"탄핵안": ["탄액안"]})     # 한미동맹 -> 안미동맹 is blocked
+        self.assertEqual(seen, [("동일교", "통일교", 1)])  # in the logs: left for a person
+        self.assertNotIn("한덕수", auto)                    # names get no guesses
+
+    def test_guessed_variants_load_beside_the_dictionary_and_can_be_turned_off(self):
+        import os
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as folder:
+            Path(folder, "sample.json").write_text(json.dumps(SAMPLE, ensure_ascii=False), encoding="utf-8")
+            Path(folder, "sample.auto.json").write_text(json.dumps(
+                {"variants": {"국무회의": ["국무위의", "궁무회의", "과방위"], "없는말": ["아무거나"]}},
+                ensure_ascii=False), encoding="utf-8")
+            topic = load_topic("sample", Path(folder))
+            self.assertEqual(topic.replacements["국무위의"], "국무회의")
+            self.assertEqual(topic.guessed, 1)              # a confirmed variant and a term are kept as they are
+            self.assertNotIn("아무거나", topic.replacements)
+            self.assertEqual(available_topics(Path(folder)), ["sample"])
+            with mock.patch.dict(os.environ, {"LIVECAPTION_AUTO_VARIANTS": "0"}):
+                self.assertNotIn("국무위의", load_topic("sample", Path(folder)).replacements)
+
 
 if __name__ == "__main__":
     unittest.main()

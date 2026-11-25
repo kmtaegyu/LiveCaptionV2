@@ -22,6 +22,7 @@ ignored entirely. Pure Python, unit-tested.
 """
 import json
 import logging
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -43,6 +44,7 @@ class Topic:
     groups: dict[str, dict] = field(default_factory=dict)   # name -> {"triggers": [...], "terms": [...]}
     roles: list[tuple[str, str]] = field(default_factory=list)   # (role, term)
     pending: int = 0                                         # entries waiting for confirmation
+    guessed: int = 0                                         # replacements from <topic>.auto.json
 
     def matched_groups(self, text: str) -> list[str]:
         """Names of the groups ``text`` touches, the one with the most hits first."""
@@ -106,6 +108,34 @@ def parse_topic(name: str, data: dict) -> Topic:
     return topic
 
 
+def add_guessed_variants(topic: Topic, path: Path) -> int:
+    """Add the machine-guessed variants of ``<topic>.auto.json`` (see generate_variants.py).
+
+    A confirmed variant or a dictionary term always wins over a guess, and
+    LIVECAPTION_AUTO_VARIANTS=0 leaves the guesses out.
+    """
+    if os.environ.get("LIVECAPTION_AUTO_VARIANTS", "1") == "0":
+        return 0
+    try:
+        guessed = json.loads(path.read_text(encoding="utf-8")).get("variants") or {}
+    except FileNotFoundError:
+        return 0
+    except (OSError, ValueError, AttributeError) as error:
+        logger.warning("Cannot read guessed variants %s: %s", path, error)
+        return 0
+    known, added = set(topic.terms), 0
+    for term, variants in guessed.items():
+        if term not in known:
+            continue
+        for variant in variants or []:
+            variant = str(variant).strip()
+            if len(variant) < MIN_VARIANT_CHARS or variant in known or variant in topic.replacements:
+                continue
+            topic.replacements[variant] = term
+            added += 1
+    return added
+
+
 def available_topics(directory: Path = DICTIONARY_DIR) -> list[str]:
     return sorted(path.stem for path in directory.glob("*.json") if _NAME.match(path.stem))
 
@@ -128,6 +158,8 @@ def load_topic(name, directory: Path = DICTIONARY_DIR) -> Topic | None:
         logger.warning("Cannot read topic dictionary %s: %s", path, error)
         return None
     topic = parse_topic(name, data if isinstance(data, dict) else {})
+    topic.guessed = add_guessed_variants(topic, directory / f"{name}.auto.json")
+    logger.info("Topic %s: %d guessed variants", name, topic.guessed)
     logger.info("Topic %s: %d terms in %d groups, %d always-on hotwords, %d replacements, "
                 "%d unconfirmed entries skipped", name, len(topic.terms), len(topic.groups),
                 len(topic.hotwords), len(topic.replacements), topic.pending)
