@@ -209,7 +209,7 @@
   {"term": "국정원", "category": "외교", "group": "외교·안보", "hotword": false, "variants": []},
   {"term": "국정원장", "category": "외교", "group": "외교·안보", "hotword": false, "variants": []},
   {"term": "외교안보라인", "category": "외교", "group": "외교·안보", "hotword": false, "variants": []},
-  {"term": "자주파", "category": "외교", "group": "외교·안보", "hotword": false, "variants": []},
+  {"term": "자주파", "category": "외교", "group": "외교·안보", "hotword": false, "variants": ["저주파"]},
   {"term": "동맹파", "category": "외교", "group": "외교·안보", "hotword": false, "variants": []},
   {"term": "실용외교", "category": "외교", "group": "외교·안보", "hotword": false, "variants": []},
   {"term": "한중 정상회담", "category": "외교", "group": "외교·안보", "hotword": false, "variants": []},
